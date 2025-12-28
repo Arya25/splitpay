@@ -1,14 +1,14 @@
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useEffect } from "react";
-import { useGroupStore } from "../../../src/store/groupStore";
 import { router } from "expo-router";
+import { useEffect } from "react";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { useGroupStore } from "../../../src/store/groupStore";
 
 export default function GroupsScreen() {
   const { groups, loading, fetchGroups } = useGroupStore();
 
   useEffect(() => {
     fetchGroups();
-  }, []);
+  }, [fetchGroups]);
 
   if (loading) {
     return (
