@@ -33,7 +33,7 @@ function CustomTabBar({ state, navigation }: any) {
           <HomeIcon
             width={28}
             height={28}
-            stroke={isFocused("groups") ? "#000" : "#999"}
+            stroke={isFocused("index") ? "#000" : "#999"}
           />
         </TouchableOpacity>
 
@@ -71,7 +71,7 @@ function CustomTabBar({ state, navigation }: any) {
       <View style={styles.addButtonContainer}>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => console.log("Add pressed")}
+          onPress={() => navigation.navigate("add-expense")}
         >
           <Feather name="plus" size={32} color="white" />
         </TouchableOpacity>

@@ -1,0 +1,58 @@
+[
+  {
+    "user_id": "user1",
+    "member_since": "2023-01-10",
+    "phone": "+911234567890",
+    "email": "shubham@example.com",
+    "profile_image_url": "https://i.pravatar.cc/150?img=1",
+    "user_name": "Shubham"
+  },
+  {
+    "user_id": "user2",
+    "member_since": "2023-02-15",
+    "phone": "+919876543210",
+    "email": "bipasha@example.com",
+    "profile_image_url": "https://i.pravatar.cc/150?img=2",
+    "user_name": "Bipasha"
+  },
+  {
+    "user_id": "user3",
+    "member_since": "2023-03-20",
+    "phone": "+919112223334",
+    "email": "felix@example.com",
+    "profile_image_url": "https://i.pravatar.cc/150?img=3",
+    "user_name": "Felix"
+  },
+  {
+    "user_id": "user4",
+    "member_since": "2023-04-05",
+    "phone": "+919998887766",
+    "email": "dunkin@example.com",
+    "profile_image_url": "https://i.pravatar.cc/150?img=4",
+    "user_name": "Dunkin"
+  },
+  {
+    "user_id": "user5",
+    "member_since": "2023-05-12",
+    "phone": "+918888777666",
+    "email": "maverick@example.com",
+    "profile_image_url": "https://i.pravatar.cc/150?img=5",
+    "user_name": "Maverick"
+  },
+  {
+    "user_id": "user6",
+    "member_since": "2023-06-18",
+    "phone": "+917777666555",
+    "email": "maui@example.com",
+    "profile_image_url": "https://i.pravatar.cc/150?img=6",
+    "user_name": "Maui"
+  },
+  {
+    "user_id": "user7",
+    "member_since": "2023-07-22",
+    "phone": "+916666555444",
+    "email": "bhagad@example.com",
+    "profile_image_url": "https://i.pravatar.cc/150?img=7",
+    "user_name": "Bhagad"
+  }
+]
