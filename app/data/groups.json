@@ -1,0 +1,34 @@
+[
+  {
+    "group_id": "group1",
+    "created_by": "user1",
+    "created_date": "2023-08-01",
+    "group_name": "Weekend Lunch",
+    "group_icon": "https://i.pravatar.cc/100?img=10",
+    "members": ["user1", "user2", "user3"]
+  },
+  {
+    "group_id": "group2",
+    "created_by": "user2",
+    "created_date": "2023-08-15",
+    "group_name": "Office Trip",
+    "group_icon": "https://i.pravatar.cc/100?img=11",
+    "members": ["user2", "user4", "user5", "user6"]
+  },
+  {
+    "group_id": "group3",
+    "created_by": "user5",
+    "created_date": "2023-09-05",
+    "group_name": "Friends Hangout",
+    "group_icon": "https://i.pravatar.cc/100?img=12",
+    "members": ["user1", "user5"]
+  },
+    {
+    "group_id": "group4",
+    "created_by": "user7",
+    "created_date": "2020-09-05",
+    "group_name": "Alone lies my happiness",
+    "group_icon": "https://i.pravatar.cc/100?img=12",
+    "members": ["user7"]
+  }
+]

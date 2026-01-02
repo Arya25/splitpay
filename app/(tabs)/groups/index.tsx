@@ -1,14 +1,14 @@
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useEffect } from "react";
-import { useGroupStore } from "../../../src/store/groupStore";
 import { router } from "expo-router";
+import { useEffect } from "react";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { useGroupStore } from "../../../src/store/groupStore";
 
 export default function GroupsScreen() {
   const { groups, loading, fetchGroups } = useGroupStore();
 
   useEffect(() => {
     fetchGroups();
-  }, []);
+  }, [fetchGroups]);
 
   if (loading) {
     return (
@@ -19,7 +19,7 @@ export default function GroupsScreen() {
   }
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <View style={{ flex: 1, padding: 16, marginTop: 92 }}>
       {groups.map((group) => (
         <TouchableOpacity
           key={group.id}

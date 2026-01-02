@@ -1,31 +1,19 @@
-import { View, Text, ActivityIndicator } from "react-native";
-import { useEffect } from "react";
-import { useUserStore } from "../../src/store/userStore";
+import { Text, View } from "react-native";
 import { useGroupStore } from "../../src/store/groupStore";
+import { useUserStore } from "../../src/store/userStore";
 
 export default function HomeScreen() {
-  const {
-    currentUser,
-    loading: userLoading,
-    fetchCurrentUser,
-  } = useUserStore();
+  const { currentUser, loading: userLoading } = useUserStore();
   const { groups, loading: groupsLoading, fetchGroups } = useGroupStore();
 
-  useEffect(() => {
-    fetchCurrentUser();
-    fetchGroups();
-  }, []);
-
-  if (userLoading || groupsLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
-
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <View
+      style={{
+        flex: 1,
+        padding: 16,
+        marginTop: 92,
+      }}
+    >
       <Text style={{ fontSize: 18, marginBottom: 8 }}>
         Hello {currentUser?.name}
       </Text>
@@ -42,7 +30,7 @@ export default function HomeScreen() {
             marginBottom: 8,
           }}
         >
-          <Text>{group.name}</Text>
+          <Text style={{ fontSize: 16, fontWeight: "bold" }}>{group.name}</Text>
           <Text>{group.members.length} members</Text>
         </View>
       ))}
