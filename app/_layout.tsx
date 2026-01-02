@@ -1,13 +1,12 @@
-import { SplashScreen } from '@/components/splash-screen';
-import { Stack } from 'expo-router';
-import * as SplashScreenExpo from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
-import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
-import { useUserStore } from '../src/store/userStore';
+import { SplashScreen } from "@/components/splash-screen";
+import { Stack } from "expo-router";
+import * as SplashScreenExpo from "expo-splash-screen";
+import { useEffect, useState } from "react";
+import { AuthProvider } from "../src/contexts/AuthContext";
+import { useUserStore } from "../src/store/userStore";
 
 function RootLayoutNav() {
-  const { user, loading } = useAuth();
-  const { initializeAuth } = useUserStore();
+  const { initializeAuth, currentUser } = useUserStore();
   const [isSplashVisible, setIsSplashVisible] = useState(true);
 
   useEffect(() => {
@@ -23,25 +22,24 @@ function RootLayoutNav() {
     await SplashScreenExpo.hideAsync();
   };
 
-  // Show loading while checking auth state
-  if (loading) {
-    return null;
-  }
-
   // Show splash screen for unauthenticated users
-  if (!user) {
+  if (!currentUser) {
     if (isSplashVisible) {
-      return <SplashScreen onFinish={handleSplashFinish} showLoginButton={true} />;
+      return (
+        <SplashScreen onFinish={handleSplashFinish} showLoginButton={true} />
+      );
     }
     // After splash animation, show login screen
-    return <SplashScreen onFinish={handleSplashFinish} showLoginButton={true} />;
+    return (
+      <SplashScreen onFinish={handleSplashFinish} showLoginButton={true} />
+    );
   }
 
   // Show main app for authenticated users
   return (
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="modal" options={{ presentation: "modal" }} />
     </Stack>
   );
 }

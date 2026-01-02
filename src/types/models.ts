@@ -2,6 +2,7 @@ export type User = {
   id: string;
   name: string;
   phoneNumber: string;
+  email?: string;
   upiVpa?: string;
 };
 

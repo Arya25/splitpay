@@ -1,6 +1,6 @@
-import { View, Text } from "react-native";
-import { useLocalSearchParams } from "expo-router";
 import { useGroupStore } from "@/src/store/groupStore";
+import { useLocalSearchParams } from "expo-router";
+import { Text, View } from "react-native";
 
 export default function GroupDetailScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
@@ -17,7 +17,7 @@ export default function GroupDetailScreen() {
   }
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <View style={{ flex: 1, padding: 16, marginTop: 92 }}>
       <Text style={{ fontSize: 18, marginBottom: 8 }}>{group.name}</Text>
       <Text>Members</Text>
       {group.members.map((member) => (

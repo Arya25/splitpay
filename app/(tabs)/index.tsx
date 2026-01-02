@@ -1,47 +1,19 @@
-import { useEffect } from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
-import { useAuth } from "../../src/contexts/AuthContext";
+import { Text, View } from "react-native";
 import { useGroupStore } from "../../src/store/groupStore";
 import { useUserStore } from "../../src/store/userStore";
 
 export default function HomeScreen() {
-  const {
-    currentUser,
-    loading: userLoading,
-    fetchCurrentUser,
-  } = useUserStore();
+  const { currentUser, loading: userLoading } = useUserStore();
   const { groups, loading: groupsLoading, fetchGroups } = useGroupStore();
-  const { signOut } = useAuth();
-
-  useEffect(() => {
-    fetchCurrentUser();
-    fetchGroups();
-  }, [fetchCurrentUser, fetchGroups]);
-
-  if (userLoading || groupsLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
-      {/* Sign Out Button */}
-      <TouchableOpacity
-        onPress={signOut}
-        style={{
-          backgroundColor: '#FF3B30',
-          padding: 12,
-          borderRadius: 8,
-          marginBottom: 16,
-          alignItems: 'center',
-        }}
-      >
-        <Text style={{ color: 'white', fontWeight: 'bold' }}>Sign Out</Text>
-      </TouchableOpacity>
-
+    <View
+      style={{
+        flex: 1,
+        padding: 16,
+        marginTop: 92,
+      }}
+    >
       <Text style={{ fontSize: 18, marginBottom: 8 }}>
         Hello {currentUser?.name}
       </Text>

@@ -19,7 +19,7 @@ export default function GroupsScreen() {
   }
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <View style={{ flex: 1, padding: 16, marginTop: 92 }}>
       {groups.map((group) => (
         <TouchableOpacity
           key={group.id}

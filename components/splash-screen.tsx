@@ -1,15 +1,29 @@
-import LottieView from 'lottie-react-native';
-import React, { useEffect } from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useAuth } from '../src/contexts/AuthContext';
+import LottieView from "lottie-react-native";
+import React, { useEffect } from "react";
+import {
+  Animated,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useAuth } from "../src/contexts/AuthContext";
 
 interface SplashScreenProps {
   onFinish: () => void;
   showLoginButton?: boolean;
 }
 
-export function SplashScreen({ onFinish, showLoginButton = false }: SplashScreenProps) {
-  const { signInWithGoogle, loading: authLoading } = useAuth();
+export function SplashScreen({
+  onFinish,
+  showLoginButton = false,
+}: SplashScreenProps) {
+  const {
+    signInWithGoogle,
+    signInWithPhoneMock,
+    loading: authLoading,
+  } = useAuth();
+
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.8);
 
@@ -46,7 +60,7 @@ export function SplashScreen({ onFinish, showLoginButton = false }: SplashScreen
   return (
     <View style={styles.container}>
       <LottieView
-        source={require('../assets/animations/splash-helper.json')}
+        source={require("../assets/animations/splash-helper.json")}
         autoPlay
         loop={true}
         style={styles.backgroundLottie}
@@ -62,36 +76,40 @@ export function SplashScreen({ onFinish, showLoginButton = false }: SplashScreen
       >
         <View style={styles.logoContainer}>
           <LottieView
-            source={require('../assets/animations/splash.json')}
+            source={require("../assets/animations/splash.json")}
             autoPlay
             loop={false}
             style={styles.lottie}
           />
         </View>
-        <Text style={styles.appName}>
-          Split money the right way
-        </Text>
+        <Text style={styles.appName}>Split money the right way</Text>
 
         {showLoginButton && (
           <TouchableOpacity
-            style={[styles.loginButton, authLoading && styles.loginButtonDisabled]}
+            style={[
+              styles.loginButton,
+              authLoading && styles.loginButtonDisabled,
+            ]}
             onPress={signInWithGoogle}
             disabled={authLoading}
           >
             <Text style={styles.loginButtonText}>
-              {authLoading ? 'Signing in...' : 'Continue with Google'}
+              {authLoading ? "Signing in..." : "Continue with Google"}
             </Text>
           </TouchableOpacity>
         )}
 
-          {showLoginButton && (
+        {showLoginButton && (
           <TouchableOpacity
-            style={[styles.phoneButton, authLoading && styles.phoneButtonDisabled]}
-            onPress={signInWithGoogle}
+            style={[
+              styles.phoneButton,
+              authLoading && styles.phoneButtonDisabled,
+            ]}
+            onPress={signInWithPhoneMock}
             disabled={authLoading}
           >
             <Text style={styles.phoneButtonText}>
-              {authLoading ? 'Signing in...' : 'Continue with Phone'}
+              {authLoading ? "Signing in..." : "Continue with Phone"}
             </Text>
           </TouchableOpacity>
         )}
@@ -107,20 +125,20 @@ export function SplashScreen({ onFinish, showLoginButton = false }: SplashScreen
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
   },
   backgroundLottie: {
-    position: 'absolute',
+    position: "absolute",
     top: -300,
     left: 0,
     right: 0,
     bottom: 0,
   },
   content: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 32, // Add horizontal padding to prevent text from touching edges
   },
   logoContainer: {
@@ -132,47 +150,47 @@ const styles = StyleSheet.create({
   },
   appName: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#000000',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#000000",
+    textAlign: "center",
     marginTop: 16,
     lineHeight: 34,
   },
   loginButton: {
-    backgroundColor: '#000000',
+    backgroundColor: "#000000",
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 8,
     marginTop: 40,
     minWidth: 200,
-    alignItems: 'center',
+    alignItems: "center",
   },
   loginButtonDisabled: {
-    backgroundColor: '#cccccc',
+    backgroundColor: "#cccccc",
   },
   loginButtonText: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: '600',
-    width: 165
+    fontWeight: "600",
+    width: 165,
   },
   phoneButton: {
-    backgroundColor: '#60b1f5',
+    backgroundColor: "#60b1f5",
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 8,
     marginTop: 40,
     minWidth: 200,
-    alignItems: 'center',
+    alignItems: "center",
   },
   phoneButtonDisabled: {
-    backgroundColor: '#cccccc',
+    backgroundColor: "#cccccc",
   },
   phoneButtonText: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: '600',
-    width: 165
+    fontWeight: "600",
+    width: 165,
   },
   tagline: {
     fontSize: 16,
