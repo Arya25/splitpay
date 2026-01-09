@@ -1,5 +1,5 @@
-import groupsData from "../data/groups.json";
-import { User, UserService } from "./userService";
+import groupsData from "../app/data/groups.json";
+import { User, UserService } from "./UserService";
 
 export interface Group {
   group_id: string;
@@ -17,7 +17,10 @@ export const GroupService = {
 
   getGroupById: async (group_id: string): Promise<Group | undefined> => {
     return new Promise((resolve) =>
-      setTimeout(() => resolve(groupsData.find((g) => g.group_id === group_id)), 300)
+      setTimeout(
+        () => resolve(groupsData.find((g) => g.group_id === group_id)),
+        300
+      )
     );
   },
 
