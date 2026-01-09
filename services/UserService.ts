@@ -1,4 +1,4 @@
-import usersData from "../data/users.json";
+import usersData from "../app/data/users.json";
 
 export interface User {
   user_id: string;
@@ -17,7 +17,10 @@ export const UserService = {
 
   getUserById: async (user_id: string): Promise<User | undefined> => {
     return new Promise((resolve) =>
-      setTimeout(() => resolve(usersData.find((u) => u.user_id === user_id)), 300)
+      setTimeout(
+        () => resolve(usersData.find((u) => u.user_id === user_id)),
+        300
+      )
     );
   },
 };

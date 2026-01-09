@@ -2,6 +2,7 @@ import { SplashScreen } from "@/components/splash-screen";
 import { Stack } from "expo-router";
 import * as SplashScreenExpo from "expo-splash-screen";
 import { useEffect, useState } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "../src/contexts/AuthContext";
 import { useUserStore } from "../src/store/userStore";
 
@@ -37,10 +38,12 @@ function RootLayoutNav() {
 
   // Show main app for authenticated users
   return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-    </Stack>
+    <SafeAreaProvider>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+      </Stack>
+    </SafeAreaProvider>
   );
 }
 
