@@ -19,10 +19,12 @@ export const useUserStore = create<UserState>((set) => ({
     onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         const user: User = {
-          id: firebaseUser.uid,
-          name: firebaseUser.displayName || "User",
-          phoneNumber: firebaseUser.phoneNumber || "",
-          upiVpa: "",
+          user_id: firebaseUser.uid,
+          user_name: firebaseUser.displayName || "User",
+          phone: firebaseUser.phoneNumber || "",
+          email: firebaseUser.email || "",
+          profile_image_url: firebaseUser.photoURL || "",
+          member_since: new Date().toISOString(),
         };
         set({ currentUser: user, loading: false });
       } else {
@@ -33,10 +35,12 @@ export const useUserStore = create<UserState>((set) => ({
 
   setMockUser: () => {
     const mockUser: User = {
-      id: "mock-phone-user",
-      name: "Test User",
-      phoneNumber: "9999999999",
-      upiVpa: "",
+      user_id: "mock-phone-user",
+      user_name: "Test User",
+      phone: "9999999999",
+      email: "test@example.com",
+      profile_image_url: "",
+      member_since: new Date().toISOString(),
     };
 
     set({ currentUser: mockUser, loading: false });

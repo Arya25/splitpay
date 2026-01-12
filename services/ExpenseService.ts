@@ -1,31 +1,12 @@
-export type SplitType = "equal" | "percentage" | "share";
+import {
+  Expense,
+  ExpenseParticipant,
+  ExpensePayer,
+  ExpenseScope,
+  SplitType,
+} from "../src/types/models";
 
-export interface ExpenseScope {
-  type: "user" | "group";
-  id: string;
-}
-
-export interface ExpenseParticipant {
-  user_id: string;
-  amount_owed?: number;
-  percentage?: number;
-}
-
-export interface ExpensePayer {
-  user_id: string;
-  amount_paid: number;
-}
-
-export interface Expense {
-  amount: number;
-  desc: string;
-  currency: string;
-  created_by: string;
-  split_type: SplitType;
-  scopes: ExpenseScope[];
-  participants?: ExpenseParticipant[];
-  payers: ExpensePayer[];
-}
+export { Expense, ExpenseParticipant, ExpensePayer, ExpenseScope, SplitType };
 
 export const ExpenseService = {
   addExpense: async (expense: Expense): Promise<Expense> => {

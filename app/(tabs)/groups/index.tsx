@@ -22,8 +22,8 @@ export default function GroupsScreen() {
     <View style={{ flex: 1, padding: 16, marginTop: 92 }}>
       {groups.map((group) => (
         <TouchableOpacity
-          key={group.id}
-          onPress={() => router.push(`/groups/${group.id}`)}
+          key={group.group_id}
+          onPress={() => router.push(`/groups/${group.group_id}`)}
           style={{
             padding: 12,
             borderWidth: 1,
@@ -31,7 +31,7 @@ export default function GroupsScreen() {
             marginBottom: 8,
           }}
         >
-          <Text style={{ fontSize: 16 }}>{group.name}</Text>
+          <Text style={{ fontSize: 16 }}>{group.group_name}</Text>
           <Text>{group.members.length} members</Text>
         </TouchableOpacity>
       ))}

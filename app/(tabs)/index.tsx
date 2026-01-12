@@ -15,14 +15,14 @@ export default function HomeScreen() {
       }}
     >
       <Text style={{ fontSize: 18, marginBottom: 8 }}>
-        Hello {currentUser?.name}
+        Hello {currentUser?.user_name}
       </Text>
 
       <Text style={{ fontSize: 16, marginBottom: 12 }}>Your groups</Text>
 
       {groups.map((group) => (
         <View
-          key={group.id}
+          key={group.group_id}
           style={{
             padding: 12,
             borderWidth: 1,
@@ -30,7 +30,7 @@ export default function HomeScreen() {
             marginBottom: 8,
           }}
         >
-          <Text style={{ fontSize: 16, fontWeight: "bold" }}>{group.name}</Text>
+          <Text style={{ fontSize: 16, fontWeight: "bold" }}>{group.group_name}</Text>
           <Text>{group.members.length} members</Text>
         </View>
       ))}
