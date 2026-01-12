@@ -1,13 +1,5 @@
 import usersData from "../app/data/users.json";
-
-export interface User {
-  user_id: string;
-  member_since: string;
-  phone: string;
-  email: string;
-  profile_image_url: string;
-  user_name: string;
-}
+import { User } from "../src/types/models";
 
 export const UserService = {
   getAllUsers: async (): Promise<User[]> => {

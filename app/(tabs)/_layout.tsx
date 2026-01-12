@@ -25,57 +25,113 @@ function CustomTabBar({ state, navigation }: any) {
   const isFocused = (routeName: string) =>
     state.routes[state.index].name === routeName;
 
+  // Get current route name
+  const currentRoute = state.routes[state.index].name;
+  const isAddExpensePage = currentRoute === "add-expense";
+
   return (
     <View style={styles.tabBar}>
-      {/* Left Section */}
-      <View style={styles.leftIcons}>
-        <TouchableOpacity onPress={() => navigation.navigate("index")}>
-          <HomeIcon
-            width={28}
-            height={28}
-            stroke={isFocused("index") ? "#000" : "#999"}
-          />
-        </TouchableOpacity>
+      {isAddExpensePage ? (
+        // Evenly spaced layout when on add-expense page
+        <>
+          <TouchableOpacity
+            style={styles.evenlySpacedIcon}
+            onPress={() => navigation.navigate("index")}
+          >
+            <HomeIcon
+              width={28}
+              height={28}
+              stroke={isFocused("index") ? "#000" : "#999"}
+            />
+          </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.navigate("groups")}>
-          <GroupsIcon
-            width={28}
-            height={28}
-            stroke={isFocused("groups") ? "#000" : "#999"}
-          />
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={styles.evenlySpacedIcon}
+            onPress={() => navigation.navigate("groups")}
+          >
+            <GroupsIcon
+              width={28}
+              height={28}
+              stroke={isFocused("groups") ? "#000" : "#999"}
+            />
+          </TouchableOpacity>
 
-      {/* Center Section (space for floating Add button) */}
-      <View style={{ width: 70 }} />
+          <TouchableOpacity
+            style={styles.evenlySpacedIcon}
+            onPress={() => navigation.navigate("activity")}
+          >
+            <ActivityIcon
+              width={28}
+              height={28}
+              stroke={isFocused("activity") ? "#000" : "#999"}
+            />
+          </TouchableOpacity>
 
-      {/* Right Section */}
-      <View style={styles.rightIcons}>
-        <TouchableOpacity onPress={() => navigation.navigate("activity")}>
-          <ActivityIcon
-            width={28}
-            height={28}
-            stroke={isFocused("activity") ? "#000" : "#999"}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("profile")}>
-          <ProfileIcon
-            width={28}
-            height={28}
-            stroke={isFocused("profile") ? "#000" : "#999"}
-          />
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={styles.evenlySpacedIcon}
+            onPress={() => navigation.navigate("profile")}
+          >
+            <ProfileIcon
+              width={28}
+              height={28}
+              stroke={isFocused("profile") ? "#000" : "#999"}
+            />
+          </TouchableOpacity>
+        </>
+      ) : (
+        // Original layout with plus button
+        <>
+          {/* Left Section */}
+          <View style={styles.leftIcons}>
+            <TouchableOpacity onPress={() => navigation.navigate("index")}>
+              <HomeIcon
+                width={28}
+                height={28}
+                stroke={isFocused("index") ? "#000" : "#999"}
+              />
+            </TouchableOpacity>
 
-      {/* Floating Add Button */}
-      <View style={styles.addButtonContainer}>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate("add-expense")}
-        >
-          <Feather name="plus" size={32} color="white" />
-        </TouchableOpacity>
-      </View>
+            <TouchableOpacity onPress={() => navigation.navigate("groups")}>
+              <GroupsIcon
+                width={28}
+                height={28}
+                stroke={isFocused("groups") ? "#000" : "#999"}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Center Section (space for floating Add button) */}
+          <View style={{ width: 70 }} />
+
+          {/* Right Section */}
+          <View style={styles.rightIcons}>
+            <TouchableOpacity onPress={() => navigation.navigate("activity")}>
+              <ActivityIcon
+                width={28}
+                height={28}
+                stroke={isFocused("activity") ? "#000" : "#999"}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate("profile")}>
+              <ProfileIcon
+                width={28}
+                height={28}
+                stroke={isFocused("profile") ? "#000" : "#999"}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Floating Add Button */}
+          <View style={styles.addButtonContainer}>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => navigation.navigate("add-expense")}
+            >
+              <Feather name="plus" size={32} color="white" />
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -92,6 +148,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
+  },
+  evenlySpacedIcon: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   leftIcons: {
     flexDirection: "row",

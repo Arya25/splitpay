@@ -1,14 +1,6 @@
 import groupsData from "../app/data/groups.json";
+import { Group } from "../src/types/models";
 import { User, UserService } from "./UserService";
-
-export interface Group {
-  group_id: string;
-  created_by: string;
-  created_date: string;
-  group_name: string;
-  group_icon: string;
-  members: string[]; // list of user_ids
-}
 
 export const GroupService = {
   getAllGroups: async (): Promise<Group[]> => {

@@ -1,36 +1,54 @@
-export type User = {
-  id: string;
-  name: string;
-  phoneNumber: string;
-  email?: string;
-  upiVpa?: string;
-};
+// User types
+export interface User {
+  user_id: string;
+  member_since: string;
+  phone: string;
+  email: string;
+  profile_image_url: string;
+  user_name: string;
+}
 
-export type Group = {
-  id: string;
-  name: string;
-  members: User[];
-  settings: {
-    smartSettlementEnabled: boolean;
-  };
-  createdAt: string;
-};
+// Group types
+export interface Group {
+  group_id: string;
+  created_by: string;
+  created_date: string;
+  group_name: string;
+  group_icon: string;
+  members: string[]; // list of user_ids
+}
 
-export type ExpenseParticipant = {
-  userId: string;
-  shareAmount: number;
-};
+// Expense types
+export type SplitType = "equal" | "percentage" | "share";
 
-export type Expense = {
+export interface ExpenseScope {
+  type: "user" | "group";
   id: string;
+}
+
+export interface ExpenseParticipant {
+  user_id: string;
+  amount_owed?: number;
+  percentage?: number;
+}
+
+export interface ExpensePayer {
+  user_id: string;
+  amount_paid: number;
+}
+
+export interface Expense {
   amount: number;
-  payerUserId: string;
-  groupId?: string;
-  participants: ExpenseParticipant[];
-  description?: string;
-  createdAt: string;
-};
+  desc: string;
+  currency: string;
+  created_by: string;
+  split_type: SplitType;
+  scopes: ExpenseScope[];
+  participants?: ExpenseParticipant[];
+  payers: ExpensePayer[];
+}
 
+// Balance and Activity types (for future use)
 export type Balance = {
   fromUserId: string;
   toUserId: string;
