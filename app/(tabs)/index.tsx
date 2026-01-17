@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import LottieView from "lottie-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,7 +16,7 @@ import { ExpenseService } from "../../services/ExpenseService";
 import { UserService } from "../../services/UserService";
 import { useUserStore } from "../../src/store/userStore";
 import { Expense, ExpenseParticipant, ExpensePayer, User } from "../../src/types/models";
-import { formatCurrency } from "../../src/utils/currency";
+import { formatCurrency, getCurrencySymbol } from "../../src/utils/currency";
 
 export default function HomeScreen() {
   const { currentUser } = useUserStore();
@@ -28,6 +29,7 @@ export default function HomeScreen() {
     netBalance: 0,
   });
   const [userMap, setUserMap] = useState<Record<string, User>>({});
+  const [primaryCurrency, setPrimaryCurrency] = useState<string>("INR");
   
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -112,6 +114,21 @@ export default function HomeScreen() {
 
       setExpenses(expensesData);
       setBalance(balanceData);
+
+      // Calculate most common currency from expenses
+      if (expensesData.length > 0) {
+        const currencyCounts: Record<string, number> = {};
+        expensesData.forEach((expense) => {
+          const curr = expense.currency || "INR";
+          currencyCounts[curr] = (currencyCounts[curr] || 0) + 1;
+        });
+        const mostCommonCurrency = Object.entries(currencyCounts).reduce((a, b) =>
+          currencyCounts[a[0]] > currencyCounts[b[0]] ? a : b
+        )[0];
+        setPrimaryCurrency(mostCommonCurrency);
+      } else {
+        setPrimaryCurrency("INR");
+      }
 
       // Create user map for quick lookup
       const map: Record<string, User> = {};
@@ -207,26 +224,36 @@ export default function HomeScreen() {
               ]}
             >
               {balance.netBalance >= 0 ? "+" : ""}
-              {formatCurrency(balance.netBalance, "USD")}
+              {formatCurrency(balance.netBalance, primaryCurrency)}
             </Text>
           </View>
-          <View style={styles.balanceIconContainer}>
-            <Feather name="trending-up" size={32} color="#fff" />
-          </View>
+          {balance.netBalance > 0 ? (
+            <LottieView
+              source={require("../../assets/animations/cash-in.json")}
+              autoPlay
+              loop={false}
+              speed={1}
+              style={styles.lottieAnimation}
+            />
+          ) : (
+            <View style={styles.balanceIconContainer}>
+              <Feather name="trending-up" size={32} color="#fff" />
+            </View>
+          )}
         </View>
 
         <View style={styles.balanceBreakdown}>
           <View style={styles.balanceItem}>
             <Text style={styles.balanceItemLabel}>You owe</Text>
             <Text style={styles.balanceItemAmount}>
-              {formatCurrency(balance.totalOwed, "USD")}
+              {formatCurrency(balance.totalOwed, primaryCurrency)}
             </Text>
           </View>
           <View style={styles.balanceDivider} />
           <View style={styles.balanceItem}>
             <Text style={styles.balanceItemLabel}>You're owed</Text>
             <Text style={[styles.balanceItemAmount, styles.owedToAmount]}>
-              {formatCurrency(balance.totalOwedTo, "USD")}
+              {formatCurrency(balance.totalOwedTo, primaryCurrency)}
             </Text>
           </View>
         </View>
@@ -263,11 +290,15 @@ export default function HomeScreen() {
               >
                 <View style={styles.expenseHeader}>
                   <View style={styles.expenseIconContainer}>
-                    <Feather
-                      name="dollar-sign"
-                      size={20}
-                      color={isOwed ? "#10b981" : isOwing ? "#ef4444" : "#6b7280"}
-                    />
+                    <Text
+                      style={[
+                        styles.expenseCurrencyIcon,
+                        isOwed && styles.expenseCurrencyIconOwed,
+                        isOwing && styles.expenseCurrencyIconOwing,
+                      ]}
+                    >
+                      {getCurrencySymbol(expense.currency)}
+                    </Text>
                   </View>
                   <View style={styles.expenseInfo}>
                     <Text style={styles.expenseDescription} numberOfLines={1}>
@@ -407,6 +438,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  lottieAnimation: {
+    width: 150,
+    height: 150,
+  },
   balanceBreakdown: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -494,6 +529,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+  },
+  expenseCurrencyIcon: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  expenseCurrencyIconOwed: {
+    color: "#10b981",
+  },
+  expenseCurrencyIconOwing: {
+    color: "#ef4444",
   },
   expenseInfo: {
     flex: 1,

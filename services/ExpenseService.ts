@@ -61,6 +61,25 @@ export const ExpenseService = {
       }
     }
 
+    // Create activity entry for the expense
+    // Always create activity entry for tracking
+    // Find group_id from scopes if expense is for a group
+    const groupScope = expense.scopes.find((scope) => scope.type === "group");
+    const groupId = groupScope ? groupScope.id : null;
+
+    const { error: activityError } = await supabase
+      .from('activities')
+      .insert({
+        activity_type: 'EXPENSE',
+        expense_id: expenseData.expense_id,
+        group_id: groupId || null,
+      });
+
+    if (activityError) {
+      console.error('Error creating activity entry:', activityError);
+      // Don't throw - activity is not critical, expense is already saved
+    }
+
     return {
       ...expenseData,
       scopes: expense.scopes,

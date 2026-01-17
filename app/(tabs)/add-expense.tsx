@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Keyboard,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -39,7 +40,9 @@ const AddExpensePage = () => {
   // Expense form state (lifted from ExpenseInputHorizontal)
   const [payer, setPayer] = useState<Payer>("You");
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState(currencies[0]);
+  const [currency, setCurrency] = useState(
+    currencies.find((c) => c.code === "INR") || currencies[0]
+  );
   const [description, setDescription] = useState("");
   
   // Split configuration state (lifted from SplitConfiguration)
@@ -744,6 +747,7 @@ const ExpenseInputHorizontal = ({
   saving: boolean;
 }) => {
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [showPayerPicker, setShowPayerPicker] = useState(false);
 
   const amountRef = useRef<TextInput>(null);
   const descRef = useRef<TextInput>(null);
@@ -764,7 +768,7 @@ const ExpenseInputHorizontal = ({
           style={styles.payerButton}
           onPress={() => {
             Keyboard.dismiss();
-            // TODO: Open payer selection modal
+            setShowPayerPicker(true);
           }}
         >
           {payer === "You" ? (
@@ -872,6 +876,154 @@ const ExpenseInputHorizontal = ({
           {saving ? "Saving..." : "Save Expense"}
         </Text>
       </TouchableOpacity>
+
+      {/* Payer Picker Modal */}
+      <Modal
+        visible={showPayerPicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPayerPicker(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowPayerPicker(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Who paid?</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowPayerPicker(false)}
+                    style={styles.modalCloseButton}
+                  >
+                    <Feather name="x" size={24} color="#666" />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.modalScrollView}>
+                  {/* You option */}
+                  <TouchableOpacity
+                    style={[
+                      styles.payerOption,
+                      payer === "You" && styles.payerOptionSelected,
+                    ]}
+                    onPress={() => {
+                      setPayer("You");
+                      setShowPayerPicker(false);
+                    }}
+                  >
+                    <View style={styles.payerOptionContent}>
+                      <View style={styles.payerAvatarPlaceholder}>
+                        <Text style={styles.payerAvatarText}>Y</Text>
+                      </View>
+                      <Text style={styles.payerOptionName}>You</Text>
+                    </View>
+                    {payer === "You" && (
+                      <Feather name="check" size={20} color="#33306b" />
+                    )}
+                  </TouchableOpacity>
+
+                  {/* All users */}
+                  {users.map((user) => (
+                    <TouchableOpacity
+                      key={user.user_id}
+                      style={[
+                        styles.payerOption,
+                        payer !== "You" &&
+                          (payer as User).user_id === user.user_id &&
+                          styles.payerOptionSelected,
+                      ]}
+                      onPress={() => {
+                        setPayer(user);
+                        setShowPayerPicker(false);
+                      }}
+                    >
+                      <View style={styles.payerOptionContent}>
+                        {user.profile_image_url ? (
+                          <Image
+                            source={{ uri: user.profile_image_url }}
+                            style={styles.payerAvatar}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={styles.payerAvatarPlaceholder}>
+                            <Text style={styles.payerAvatarText}>
+                              {user.user_name.charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                        <Text style={styles.payerOptionName}>
+                          {user.user_name}
+                        </Text>
+                      </View>
+                      {payer !== "You" &&
+                        (payer as User).user_id === user.user_id && (
+                          <Feather name="check" size={20} color="#33306b" />
+                        )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Currency Picker Modal */}
+      <Modal
+        visible={showCurrencyPicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCurrencyPicker(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowCurrencyPicker(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Select Currency</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowCurrencyPicker(false)}
+                    style={styles.modalCloseButton}
+                  >
+                    <Feather name="x" size={24} color="#666" />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.modalScrollView}>
+                  {currencies.map((curr) => (
+                    <TouchableOpacity
+                      key={curr.code}
+                      style={[
+                        styles.currencyOption,
+                        currency.code === curr.code &&
+                          styles.currencyOptionSelected,
+                      ]}
+                      onPress={() => {
+                        setCurrency(curr);
+                        setShowCurrencyPicker(false);
+                      }}
+                    >
+                      <View style={styles.currencyOptionContent}>
+                        <Text style={styles.currencyOptionSymbol}>
+                          {curr.symbol}
+                        </Text>
+                        <View style={styles.currencyOptionText}>
+                          <Text style={styles.currencyOptionName}>
+                            {curr.name}
+                          </Text>
+                          <Text style={styles.currencyOptionCode}>
+                            {curr.code}
+                          </Text>
+                        </View>
+                      </View>
+                      {currency.code === curr.code && (
+                        <Feather name="check" size={20} color="#33306b" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 };
@@ -1273,5 +1425,97 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#fff",
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "80%",
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e5e5",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  // Payer Picker Styles
+  payerOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  payerOptionSelected: {
+    backgroundColor: "#f8f9fa",
+  },
+  payerOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  payerOptionName: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#333",
+  },
+  // Currency Picker Styles
+  currencyOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  currencyOptionSelected: {
+    backgroundColor: "#f8f9fa",
+  },
+  currencyOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  currencyOptionSymbol: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#333",
+    minWidth: 40,
+  },
+  currencyOptionText: {
+    flex: 1,
+  },
+  currencyOptionName: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#333",
+  },
+  currencyOptionCode: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
   },
 });

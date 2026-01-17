@@ -5,6 +5,7 @@ export default function GroupsLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" options={{ title: "Groups" }} />
       <Stack.Screen name="[groupId]" options={{ title: "Group" }} />
+      <Stack.Screen name="create-group" options={{ title: "Create Group" }} />
     </Stack>
   );
 }
