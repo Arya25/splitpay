@@ -22,7 +22,7 @@ export interface Group {
 export type SplitType = "equal" | "percentage" | "share";
 
 export interface ExpenseScope {
-  type: "user" | "group";
+  type: "user" | "group" | "both";
   id: string;
 }
 
@@ -38,14 +38,17 @@ export interface ExpensePayer {
 }
 
 export interface Expense {
+  expense_id: string;
   amount: number;
-  desc: string;
+  description: string;
   currency: string;
   created_by: string;
   split_type: SplitType;
   scopes: ExpenseScope[];
   participants?: ExpenseParticipant[];
   payers: ExpensePayer[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 // Balance and Activity types (for future use)

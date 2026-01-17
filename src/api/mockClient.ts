@@ -11,9 +11,9 @@ export const api = {
     return users[0];
   },
 
-  getGroups: async (): Promise<Group[]> => {
+  getGroups: async (userId: string): Promise<Group[]> => {
     await delay(300);
-    return GroupService.getAllGroups();
+    return GroupService.getAllGroups(userId);
   },
 
   getGroupExpenses: async (groupId: string): Promise<Expense[]> => {
