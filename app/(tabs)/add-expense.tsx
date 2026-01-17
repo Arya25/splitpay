@@ -13,11 +13,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 
-import { Group, SplitType } from "../../src/types/models";
+import { Group, SplitType, ExpenseScope, ExpenseParticipant, ExpensePayer } from "../../src/types/models";
 import { User } from "../../src/types/models";
 import { GroupService } from "../../services/GroupService";
 import { UserService } from "../../services/UserService";
+import { ExpenseService } from "../../services/ExpenseService";
 import { useUserStore } from "../../src/store/userStore";
+import { router } from "expo-router";
 import currencies from "../data/currencies.json";
 
 type Payer = User | "You";
@@ -33,13 +35,32 @@ const AddExpensePage = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [search, setSearch] = useState("");
+  
+  // Expense form state (lifted from ExpenseInputHorizontal)
+  const [payer, setPayer] = useState<Payer>("You");
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState(currencies[0]);
+  const [description, setDescription] = useState("");
+  
+  // Split configuration state (lifted from SplitConfiguration)
+  const [splitType, setSplitType] = useState<SplitType>("equal");
+  const [splitParticipants, setSplitParticipants] = useState<User[]>([]);
+  const [percentages, setPercentages] = useState<Record<string, string>>({});
+  const [shares, setShares] = useState<Record<string, string>>({});
+  
+  // Loading state
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     UserService.getAllUsers().then(setUsers);
-    GroupService.getAllGroups().then(setGroups);
+    
+    // Fetch groups for current user
+    if (currentUser) {
+      GroupService.getAllGroups(currentUser.user_id).then(setGroups);
+    }
 
     setTimeout(() => inputRef.current?.focus(), 200);
-  }, []);
+  }, [currentUser]);
 
   // Get all individual participants (expand groups to members)
   const getAllParticipants = async (): Promise<User[]> => {
@@ -120,6 +141,128 @@ const AddExpensePage = () => {
   const filteredGroups = groups.filter((g) =>
     g.group_name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleSaveExpense = async () => {
+    if (!currentUser || !amount || selectedItems.length === 0) {
+      return;
+    }
+
+    // Validate split configuration
+    if (splitType === "percentage") {
+      const totalPercentage = Object.values(percentages).reduce(
+        (sum, pct) => sum + (parseFloat(pct) || 0),
+        0
+      );
+      if (Math.abs(totalPercentage - 100) > 0.01) {
+        alert("Total percentage must equal 100%");
+        return;
+      }
+    }
+
+    if (splitType === "share") {
+      const totalAmount = parseFloat(amount);
+      const totalShare = Object.values(shares).reduce(
+        (sum, share) => sum + (parseFloat(share) || 0),
+        0
+      );
+      if (Math.abs(totalShare - totalAmount) > 0.01) {
+        alert(`Total share must equal amount (${currency.symbol}${totalAmount.toFixed(2)})`);
+        return;
+      }
+    }
+
+    try {
+      setSaving(true);
+
+      // Ensure we have participants loaded
+      if (splitParticipants.length === 0) {
+        const allParticipants = await getAllParticipants();
+        setSplitParticipants(allParticipants);
+        
+        // Wait a bit for state to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      // Use current participants or reload if empty
+      const participantsToUse = splitParticipants.length > 0 
+        ? splitParticipants 
+        : await getAllParticipants();
+
+      // Build scopes from selectedItems
+      const scopes: ExpenseScope[] = selectedItems.map((item) => ({
+        type: item.type === "group" ? "group" : "user",
+        id: item.type === "group" ? item.data.group_id : item.data.user_id,
+      }));
+
+      // Calculate participant amounts based on split type
+      const totalAmount = parseFloat(amount);
+      const participants: ExpenseParticipant[] = participantsToUse.map((participant) => {
+        let amountOwed = 0;
+        let percentage: number | undefined = undefined;
+
+        if (splitType === "equal") {
+          amountOwed = totalAmount / participantsToUse.length;
+        } else if (splitType === "percentage") {
+          const pct = parseFloat(percentages[participant.user_id] || "0");
+          percentage = pct;
+          amountOwed = (totalAmount * pct) / 100;
+        } else if (splitType === "share") {
+          amountOwed = parseFloat(shares[participant.user_id] || "0");
+        }
+
+        return {
+          user_id: participant.user_id,
+          amount_owed: Math.round(amountOwed * 100) / 100,
+          percentage: percentage,
+        };
+      });
+
+      // Build payers array
+      const payers: ExpensePayer[] = [];
+      if (payer === "You" && currentUser) {
+        payers.push({
+          user_id: currentUser.user_id,
+          amount_paid: totalAmount,
+        });
+      } else if (payer !== "You") {
+        payers.push({
+          user_id: (payer as User).user_id,
+          amount_paid: totalAmount,
+        });
+      }
+
+      // Create expense object
+      const expense = {
+        amount: totalAmount,
+        description: description || "Expense",
+        currency: currency.code,
+        created_by: currentUser.user_id,
+        split_type: splitType,
+        scopes: scopes,
+        participants: participants,
+        payers: payers,
+      };
+
+      // Save to database
+      await ExpenseService.addExpense(expense);
+
+      // Navigate back to home with success message
+      router.replace({
+        pathname: "/(tabs)/",
+        params: { expenseSaved: "true" },
+      });
+    } catch (error) {
+      console.error("Error saving expense:", error);
+      
+      // Navigate back with error message
+      router.replace({
+        pathname: "/(tabs)/",
+        params: { expenseError: "true" },
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -277,7 +420,24 @@ const AddExpensePage = () => {
             users={users}
             selectedItems={selectedItems}
             currentUser={currentUser}
-            onPayerSelect={(user) => console.log("Selected payer:", user)}
+            payer={payer}
+            setPayer={setPayer}
+            amount={amount}
+            setAmount={setAmount}
+            currency={currency}
+            setCurrency={setCurrency}
+            description={description}
+            setDescription={setDescription}
+            splitType={splitType}
+            setSplitType={setSplitType}
+            splitParticipants={splitParticipants}
+            setSplitParticipants={setSplitParticipants}
+            percentages={percentages}
+            setPercentages={setPercentages}
+            shares={shares}
+            setShares={setShares}
+            onSave={handleSaveExpense}
+            saving={saving}
           />
         </View>
       </ScrollView>
@@ -291,16 +451,28 @@ const SplitConfiguration = ({
   amount,
   currency,
   currentUser,
+  splitType,
+  setSplitType,
+  splitParticipants,
+  setSplitParticipants,
+  percentages,
+  setPercentages,
+  shares,
+  setShares,
 }: {
   selectedItems: SelectedItem[];
   amount: string;
   currency: { code: string; symbol: string; name: string };
   currentUser: User | null;
+  splitType: SplitType;
+  setSplitType: (type: SplitType) => void;
+  splitParticipants: User[];
+  setSplitParticipants: (participants: User[]) => void;
+  percentages: Record<string, string>;
+  setPercentages: (percentages: Record<string, string>) => void;
+  shares: Record<string, string>;
+  setShares: (shares: Record<string, string>) => void;
 }) => {
-  const [splitType, setSplitType] = useState<SplitType>("equal");
-  const [participants, setParticipants] = useState<User[]>([]);
-  const [percentages, setPercentages] = useState<Record<string, string>>({});
-  const [shares, setShares] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const loadParticipants = async () => {
@@ -333,19 +505,19 @@ const SplitConfiguration = ({
         }
       }
 
-      setParticipants(allParticipants);
+      setSplitParticipants(allParticipants);
       // Reset percentages and shares when participants change
       setPercentages({});
       setShares({});
     };
 
     loadParticipants();
-  }, [selectedItems, currentUser]);
+  }, [selectedItems, currentUser, setSplitParticipants, setPercentages, setShares]);
 
   const totalAmount = parseFloat(amount) || 0;
   const equalAmount =
-    participants.length > 0
-      ? (totalAmount / participants.length).toFixed(2)
+    splitParticipants.length > 0
+      ? (totalAmount / splitParticipants.length).toFixed(2)
       : "0.00";
 
   // Calculate total percentage
@@ -380,7 +552,7 @@ const SplitConfiguration = ({
     return "0.00";
   };
 
-  if (participants.length === 0) {
+  if (splitParticipants.length === 0) {
     return null;
   }
 
@@ -442,7 +614,7 @@ const SplitConfiguration = ({
 
       {/* Participants List */}
       <View style={[styles.participantsList, { marginTop: 16 }]}>
-        {participants.map((participant) => (
+        {splitParticipants.map((participant) => (
           <View key={participant.user_id} style={styles.participantRow}>
             <View style={styles.participantInfo}>
               {participant.profile_image_url ? (
@@ -530,17 +702,47 @@ const ExpenseInputHorizontal = ({
   users,
   selectedItems,
   currentUser,
-  onPayerSelect,
+  payer,
+  setPayer,
+  amount,
+  setAmount,
+  currency,
+  setCurrency,
+  description,
+  setDescription,
+  splitType,
+  setSplitType,
+  splitParticipants,
+  setSplitParticipants,
+  percentages,
+  setPercentages,
+  shares,
+  setShares,
+  onSave,
+  saving,
 }: {
   users: User[];
   selectedItems: SelectedItem[];
   currentUser: User | null;
-  onPayerSelect?: (user: User) => void;
+  payer: Payer;
+  setPayer: (payer: Payer) => void;
+  amount: string;
+  setAmount: (amount: string) => void;
+  currency: { code: string; symbol: string; name: string };
+  setCurrency: (currency: { code: string; symbol: string; name: string }) => void;
+  description: string;
+  setDescription: (description: string) => void;
+  splitType: SplitType;
+  setSplitType: (type: SplitType) => void;
+  splitParticipants: User[];
+  setSplitParticipants: (participants: User[]) => void;
+  percentages: Record<string, string>;
+  setPercentages: (percentages: Record<string, string>) => void;
+  shares: Record<string, string>;
+  setShares: (shares: Record<string, string>) => void;
+  onSave: () => void;
+  saving: boolean;
 }) => {
-  const [payer, setPayer] = useState<Payer>("You");
-  const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState(currencies[0]);
-  const [description, setDescription] = useState("");
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
 
   const amountRef = useRef<TextInput>(null);
@@ -645,6 +847,14 @@ const ExpenseInputHorizontal = ({
             amount={amount}
             currency={currency}
             currentUser={currentUser}
+            splitType={splitType}
+            setSplitType={setSplitType}
+            splitParticipants={splitParticipants}
+            setSplitParticipants={setSplitParticipants}
+            percentages={percentages}
+            setPercentages={setPercentages}
+            shares={shares}
+            setShares={setShares}
           />
         </View>
       )}
@@ -653,20 +863,14 @@ const ExpenseInputHorizontal = ({
       <TouchableOpacity
         style={[
           styles.saveButton,
-          (!amount || selectedItems.length === 0) && styles.saveButtonDisabled,
+          (!amount || selectedItems.length === 0 || saving) && styles.saveButtonDisabled,
         ]}
-        disabled={!amount || selectedItems.length === 0}
-        onPress={() => {
-          // TODO: Save expense
-          console.log("Save expense:", {
-            payer,
-            amount,
-            currency,
-            description,
-          });
-        }}
+        disabled={!amount || selectedItems.length === 0 || saving}
+        onPress={onSave}
       >
-        <Text style={styles.saveButtonText}>Save Expense</Text>
+        <Text style={styles.saveButtonText}>
+          {saving ? "Saving..." : "Save Expense"}
+        </Text>
       </TouchableOpacity>
     </View>
   );

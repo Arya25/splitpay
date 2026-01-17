@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signInWithPhoneMock = async () => {
-    useUserStore.getState().setMockUser();
+    await useUserStore.getState().setMockUser();
   };
 
   const value = {
