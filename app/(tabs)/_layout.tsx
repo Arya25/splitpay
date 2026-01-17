@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
-import { Dimensions, StyleSheet, TouchableOpacity, View } from "react-native";
+import { router, Tabs } from "expo-router";
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ActivityIcon from "../../assets/icons/activity.svg";
 import GroupsIcon from "../../assets/icons/groups.svg";
 import HomeIcon from "../../assets/icons/home.svg";
@@ -29,6 +29,28 @@ function CustomTabBar({ state, navigation }: any) {
   const currentRoute = state.routes[state.index].name;
   const isAddExpensePage = currentRoute === "add-expense";
 
+  // Helper to get tab label
+  const getTabLabel = (routeName: string) => {
+    const labels: Record<string, string> = {
+      index: "Home",
+      groups: "Groups",
+      activity: "Activity",
+      profile: "Profile",
+    };
+    return labels[routeName] || routeName;
+  };
+
+  // Helper to handle groups navigation - navigate to index if already on groups
+  const handleGroupsNavigation = () => {
+    if (currentRoute === "groups") {
+      // If already on groups tab, replace current route with groups index to reset to root
+      router.replace("/groups");
+    } else {
+      // Otherwise, navigate to groups tab
+      navigation.navigate("groups");
+    }
+  };
+
   return (
     <View style={styles.tabBar}>
       {isAddExpensePage ? (
@@ -43,17 +65,33 @@ function CustomTabBar({ state, navigation }: any) {
               height={28}
               stroke={isFocused("index") ? "#000" : "#999"}
             />
+            <Text
+              style={[
+                styles.tabLabel,
+                isFocused("index") && styles.tabLabelActive,
+              ]}
+            >
+              {getTabLabel("index")}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.evenlySpacedIcon}
-            onPress={() => navigation.navigate("groups")}
+            onPress={handleGroupsNavigation}
           >
             <GroupsIcon
               width={28}
               height={28}
               stroke={isFocused("groups") ? "#000" : "#999"}
             />
+            <Text
+              style={[
+                styles.tabLabel,
+                isFocused("groups") && styles.tabLabelActive,
+              ]}
+            >
+              {getTabLabel("groups")}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -65,6 +103,14 @@ function CustomTabBar({ state, navigation }: any) {
               height={28}
               stroke={isFocused("activity") ? "#000" : "#999"}
             />
+            <Text
+              style={[
+                styles.tabLabel,
+                isFocused("activity") && styles.tabLabelActive,
+              ]}
+            >
+              {getTabLabel("activity")}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -76,6 +122,14 @@ function CustomTabBar({ state, navigation }: any) {
               height={28}
               stroke={isFocused("profile") ? "#000" : "#999"}
             />
+            <Text
+              style={[
+                styles.tabLabel,
+                isFocused("profile") && styles.tabLabelActive,
+              ]}
+            >
+              {getTabLabel("profile")}
+            </Text>
           </TouchableOpacity>
         </>
       ) : (
@@ -83,20 +137,42 @@ function CustomTabBar({ state, navigation }: any) {
         <>
           {/* Left Section */}
           <View style={styles.leftIcons}>
-            <TouchableOpacity onPress={() => navigation.navigate("index")}>
+            <TouchableOpacity
+              style={styles.tabButton}
+              onPress={() => navigation.navigate("index")}
+            >
               <HomeIcon
                 width={28}
                 height={28}
                 stroke={isFocused("index") ? "#000" : "#999"}
               />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  isFocused("index") && styles.tabLabelActive,
+                ]}
+              >
+                {getTabLabel("index")}
+              </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => navigation.navigate("groups")}>
+            <TouchableOpacity
+              style={styles.tabButton}
+              onPress={handleGroupsNavigation}
+            >
               <GroupsIcon
                 width={28}
                 height={28}
                 stroke={isFocused("groups") ? "#000" : "#999"}
               />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  isFocused("groups") && styles.tabLabelActive,
+                ]}
+              >
+                {getTabLabel("groups")}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -105,19 +181,41 @@ function CustomTabBar({ state, navigation }: any) {
 
           {/* Right Section */}
           <View style={styles.rightIcons}>
-            <TouchableOpacity onPress={() => navigation.navigate("activity")}>
+            <TouchableOpacity
+              style={styles.tabButton}
+              onPress={() => navigation.navigate("activity")}
+            >
               <ActivityIcon
                 width={28}
                 height={28}
                 stroke={isFocused("activity") ? "#000" : "#999"}
               />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  isFocused("activity") && styles.tabLabelActive,
+                ]}
+              >
+                {getTabLabel("activity")}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate("profile")}>
+            <TouchableOpacity
+              style={styles.tabButton}
+              onPress={() => navigation.navigate("profile")}
+            >
               <ProfileIcon
                 width={28}
                 height={28}
                 stroke={isFocused("profile") ? "#000" : "#999"}
               />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  isFocused("profile") && styles.tabLabelActive,
+                ]}
+              >
+                {getTabLabel("profile")}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -141,18 +239,35 @@ const { width } = Dimensions.get("window");
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: "row",
-    height: 70,
+    height: 80,
     backgroundColor: "#fff",
     borderTopWidth: 0.5,
     borderTopColor: "#ccc",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
+    paddingBottom: 8,
   },
   evenlySpacedIcon: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    gap: 4,
+  },
+  tabButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  tabLabel: {
+    fontSize: 11,
+    color: "#999",
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  tabLabelActive: {
+    color: "#000",
+    fontWeight: "600",
   },
   leftIcons: {
     flexDirection: "row",
@@ -170,7 +285,7 @@ const styles = StyleSheet.create({
   },
   addButtonContainer: {
     position: "absolute",
-    bottom: 35,
+    bottom: 40,
     left: width / 2,
     transform: [{ translateX: -35 }],
   },
