@@ -6,6 +6,8 @@ export interface User {
   email: string;
   profile_image_url: string;
   user_name: string;
+  default_currency?: string; // e.g., "USD", "INR"
+  upi_id?: string; // UPI VPA (Virtual Payment Address) e.g., "user@paytm"
 }
 
 // Group types
