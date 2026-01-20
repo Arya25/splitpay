@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { router, Tabs } from "expo-router";
+import { Tabs, usePathname, router } from "expo-router";
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ActivityIcon from "../../assets/icons/activity.svg";
 import GroupsIcon from "../../assets/icons/groups.svg";
@@ -21,6 +21,8 @@ export default function TabLayout() {
 }
 
 function CustomTabBar({ state, navigation }: any) {
+  const pathname = usePathname();
+  
   // Helper to check if route is focused
   const isFocused = (routeName: string) =>
     state.routes[state.index].name === routeName;
@@ -40,13 +42,20 @@ function CustomTabBar({ state, navigation }: any) {
     return labels[routeName] || routeName;
   };
 
-  // Helper to handle groups navigation - navigate to index if already on groups
+  // Helper to handle groups navigation
   const handleGroupsNavigation = () => {
-    if (currentRoute === "groups") {
-      // If already on groups tab, replace current route with groups index to reset to root
-      router.replace("/groups");
+    // Check if we're on a groups sub-route (like create-group or [groupId])
+    const isOnGroupsSubRoute = pathname?.startsWith("/groups/") && pathname !== "/groups" && pathname !== "/groups/";
+    const isOnGroupsIndex = pathname === "/groups" || pathname === "/groups/";
+    
+    if (isOnGroupsSubRoute) {
+      // If on a sub-route, navigate to groups index
+      router.push("/groups");
+    } else if (isOnGroupsIndex) {
+      // If already on groups index, do nothing (no refresh)
+      return;
     } else {
-      // Otherwise, navigate to groups tab
+      // If on a different tab, navigate to groups
       navigation.navigate("groups");
     }
   };

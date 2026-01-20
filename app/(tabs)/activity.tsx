@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
-import { ActivityService, Activity } from "../../services/ActivityService";
+import { ActivityService, Activity, ActivityExpense, ActivitySettlement } from "../../services/ActivityService";
 import { useUserStore } from "../../src/store/userStore";
 import { formatCurrency, getCurrencySymbol } from "../../src/utils/currency";
 import { User } from "../../src/types/models";
@@ -93,11 +93,11 @@ export default function ActivityScreen() {
     return userMap[userId]?.user_name || "Unknown";
   };
 
-  const isExpenseActivity = (activity: Activity): activity is ActivityService.ActivityExpense => {
+  const isExpenseActivity = (activity: Activity): activity is ActivityExpense => {
     return activity.activity_type === "EXPENSE";
   };
 
-  const isSettlementActivity = (activity: Activity): activity is ActivityService.ActivitySettlement => {
+  const isSettlementActivity = (activity: Activity): activity is ActivitySettlement => {
     return activity.activity_type === "SETTLEMENT";
   };
 
@@ -133,6 +133,9 @@ export default function ActivityScreen() {
               const expense = activity.expense;
               const isCreatedByUser = expense?.created_by === currentUser?.user_id;
               const isInGroup = activity.group_id !== null;
+              const creator = expense?.created_by ? userMap[expense.created_by] : null;
+              const creatorName = creator?.user_name || "Unknown";
+              const creatorInitial = creatorName.charAt(0).toUpperCase();
 
               return (
                 <TouchableOpacity
@@ -141,14 +144,17 @@ export default function ActivityScreen() {
                   activeOpacity={0.7}
                 >
                   <View style={styles.activityIconContainer}>
-                    <Text
-                      style={[
-                        styles.activityCurrencyIcon,
-                        isCreatedByUser && styles.activityCurrencyIconCreated,
-                      ]}
-                    >
-                      {expense ? getCurrencySymbol(expense.currency) : "₹"}
-                    </Text>
+                    {creator?.profile_image_url && creator.profile_image_url.trim() !== "" ? (
+                      <Image
+                        source={{ uri: creator.profile_image_url }}
+                        style={styles.activityUserImage}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View style={styles.activityUserImagePlaceholder}>
+                        <Text style={styles.activityUserImageText}>{creatorInitial}</Text>
+                      </View>
+                    )}
                   </View>
                   <View style={styles.activityContent}>
                     <View style={styles.activityHeader}>
@@ -351,14 +357,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+    overflow: "hidden",
   },
-  activityCurrencyIcon: {
-    fontSize: 18,
+  activityUserImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  activityUserImagePlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#33306b",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  activityUserImageText: {
+    fontSize: 16,
     fontWeight: "600",
-    color: "#6b7280",
-  },
-  activityCurrencyIconCreated: {
-    color: "#33306b",
+    color: "#fff",
   },
   settlementSuccess: {
     backgroundColor: "#10b981",
