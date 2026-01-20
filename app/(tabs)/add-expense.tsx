@@ -1,3 +1,5 @@
+import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Keyboard,
@@ -11,16 +13,13 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
-import { Feather } from "@expo/vector-icons";
 
-import { Group, SplitType, ExpenseScope, ExpenseParticipant, ExpensePayer } from "../../src/types/models";
-import { User } from "../../src/types/models";
+import { router } from "expo-router";
+import { ExpenseService } from "../../services/ExpenseService";
 import { GroupService } from "../../services/GroupService";
 import { UserService } from "../../services/UserService";
-import { ExpenseService } from "../../services/ExpenseService";
 import { useUserStore } from "../../src/store/userStore";
-import { router } from "expo-router";
+import { ExpenseParticipant, ExpensePayer, ExpenseScope, Group, SplitType, User } from "../../src/types/models";
 import currencies from "../data/currencies.json";
 
 type Payer = User | "You";
@@ -251,7 +250,7 @@ const AddExpensePage = () => {
 
       // Navigate back to home with success message
       router.replace({
-        pathname: "/(tabs)/",
+        pathname: "/(tabs)",
         params: { expenseSaved: "true" },
       });
     } catch (error) {
@@ -259,7 +258,7 @@ const AddExpensePage = () => {
       
       // Navigate back with error message
       router.replace({
-        pathname: "/(tabs)/",
+        pathname: "/(tabs)",
         params: { expenseError: "true" },
       });
     } finally {
@@ -472,9 +471,9 @@ const SplitConfiguration = ({
   splitParticipants: User[];
   setSplitParticipants: (participants: User[]) => void;
   percentages: Record<string, string>;
-  setPercentages: (percentages: Record<string, string>) => void;
+  setPercentages: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   shares: Record<string, string>;
-  setShares: (shares: Record<string, string>) => void;
+  setShares: React.Dispatch<React.SetStateAction<Record<string, string>>>;
 }) => {
 
   useEffect(() => {
@@ -536,11 +535,11 @@ const SplitConfiguration = ({
   );
 
   const updatePercentage = (userId: string, value: string) => {
-    setPercentages((prev) => ({ ...prev, [userId]: value }));
+    setPercentages((prev: Record<string, string>): Record<string, string> => ({ ...prev, [userId]: value }));
   };
 
   const updateShare = (userId: string, value: string) => {
-    setShares((prev) => ({ ...prev, [userId]: value }));
+    setShares((prev: Record<string, string>): Record<string, string> => ({ ...prev, [userId]: value }));
   };
 
   const getParticipantAmount = (userId: string): string => {
@@ -561,10 +560,10 @@ const SplitConfiguration = ({
 
   return (
     <View>
-      <Text style={styles.sectionLabel}>Split Details</Text>
+      <Text style={styles.sectionLabel}>Who owes what</Text>
 
       {/* Split Type Tabs */}
-      <View style={styles.splitTabs}>
+      <View style={[styles.splitTabs, { marginTop: 8 }]}>
         <TouchableOpacity
           style={[
             styles.splitTab,
@@ -672,10 +671,15 @@ const SplitConfiguration = ({
                   />
                 </View>
               )}
-              <Text style={styles.participantAmount}>
-                {currency.symbol}
-                {getParticipantAmount(participant.user_id)}
-              </Text>
+              <View style={styles.amountWithOweContainer}>
+                <Text style={styles.owesText}>
+                  {participant.user_id === currentUser?.user_id ? "owe" : "owes"}
+                </Text>
+                <Text style={styles.participantAmount}>
+                  {currency.symbol}
+                  {getParticipantAmount(participant.user_id)}
+                </Text>
+              </View>
             </View>
           </View>
         ))}
@@ -740,9 +744,9 @@ const ExpenseInputHorizontal = ({
   splitParticipants: User[];
   setSplitParticipants: (participants: User[]) => void;
   percentages: Record<string, string>;
-  setPercentages: (percentages: Record<string, string>) => void;
+  setPercentages: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   shares: Record<string, string>;
-  setShares: (shares: Record<string, string>) => void;
+  setShares: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   onSave: () => void;
   saving: boolean;
 }) => {
@@ -761,9 +765,23 @@ const ExpenseInputHorizontal = ({
 
   return (
     <View style={styles.expenseContainer}>
+      {/* Description Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>What was this for ?</Text>
+        <TextInput
+          ref={descRef}
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Description of the expense"
+          placeholderTextColor="#999"
+          style={styles.descriptionInput}
+          onSubmitEditing={() => Keyboard.dismiss()}
+        />
+      </View>
+
       {/* Who Paid Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Who paid?</Text>
+        <Text style={styles.sectionLabel}>Who paid for it ?</Text>
         <TouchableOpacity
           style={styles.payerButton}
           onPress={() => {
@@ -802,7 +820,7 @@ const ExpenseInputHorizontal = ({
 
       {/* Amount Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Amount</Text>
+        <Text style={styles.sectionLabel}>How much was it for ?</Text>
         <View style={styles.amountSection}>
           <TouchableOpacity
             style={styles.currencyButton}
@@ -827,20 +845,6 @@ const ExpenseInputHorizontal = ({
             {splitAmount} per person ({totalParticipants} people)
           </Text>
         )} */}
-      </View>
-
-      {/* Description Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Description</Text>
-        <TextInput
-          ref={descRef}
-          value={description}
-          onChangeText={setDescription}
-          placeholder="What was this for?"
-          placeholderTextColor="#999"
-          style={styles.descriptionInput}
-          onSubmitEditing={() => Keyboard.dismiss()}
-        />
       </View>
 
       {/* Split Configuration */}
@@ -889,7 +893,7 @@ const ExpenseInputHorizontal = ({
             <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Who paid?</Text>
+                  <Text style={styles.modalTitle}>Who paid for it</Text>
                   <TouchableOpacity
                     onPress={() => setShowPayerPicker(false)}
                     style={styles.modalCloseButton}
@@ -1351,6 +1355,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  amountWithOweContainer: {
+    alignItems: "flex-end",
+  },
+  owesText: {
+    fontSize: 11,
+    fontWeight: "400",
+    color: "#666",
+    marginBottom: 2,
+    textTransform: "uppercase",
   },
   percentageInputContainer: {
     flexDirection: "row",

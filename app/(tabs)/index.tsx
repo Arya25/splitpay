@@ -1,33 +1,42 @@
 import { Feather } from "@expo/vector-icons";
+import { Audio } from "expo-av";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { ExpenseService } from "../../services/ExpenseService";
 import { UserService } from "../../services/UserService";
 import { useUserStore } from "../../src/store/userStore";
-import { Expense, ExpenseParticipant, ExpensePayer, User } from "../../src/types/models";
-import { formatCurrency, getCurrencySymbol } from "../../src/utils/currency";
+import { User } from "../../src/types/models";
+import { formatCurrency } from "../../src/utils/currency";
 
 export default function HomeScreen() {
   const { currentUser } = useUserStore();
   const params = useLocalSearchParams();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState({
     totalOwed: 0,
     totalOwedTo: 0,
     netBalance: 0,
   });
+  const [balancesByPerson, setBalancesByPerson] = useState<Array<{ user_id: string; amount: number; currency: string }>>([]);
+  const [groupBalances, setGroupBalances] = useState<Array<{ 
+    group_id: string; 
+    group_name: string; 
+    group_icon: string | null;
+    netAmount: number; 
+    currency: string;
+    memberBalances: Array<{ user_id: string; amount: number }>;
+  }>>([]);
   const [userMap, setUserMap] = useState<Record<string, User>>({});
   const [primaryCurrency, setPrimaryCurrency] = useState<string>("INR");
   
@@ -36,12 +45,63 @@ export default function HomeScreen() {
   const [toastType, setToastType] = useState<"success" | "error">("success");
   const toastOpacity = useState(new Animated.Value(0))[0];
   const toastTranslateY = useState(new Animated.Value(-50))[0];
+  
+  // Audio sound ref
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const hasPlayedSoundRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (currentUser) {
       loadData();
     }
   }, [currentUser]);
+
+  // Load sound on mount
+  useEffect(() => {
+    const loadSound = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+        });
+        const { sound } = await Audio.Sound.createAsync(
+          require("../../assets/sounds/cash-in.mp3")
+        );
+        soundRef.current = sound;
+      } catch (error) {
+        console.error("Error loading sound:", error);
+      }
+    };
+
+    loadSound();
+
+    // Cleanup on unmount
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
+  }, []);
+
+  // Play sound when balance is positive and animation is shown
+  useEffect(() => {
+    const playSound = async () => {
+      if (balance.netBalance > 0 && !loading && !hasPlayedSoundRef.current && soundRef.current) {
+        try {
+          // Reset sound to beginning and play
+          await soundRef.current.setPositionAsync(0);
+          await soundRef.current.playAsync();
+          hasPlayedSoundRef.current = true; // Mark as played
+        } catch (error) {
+          console.error("Error playing sound:", error);
+        }
+      }
+    };
+
+    if (!loading) {
+      playSound();
+    }
+  }, [balance.netBalance, loading]);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToastMessage(message);
@@ -85,6 +145,7 @@ export default function HomeScreen() {
   useFocusEffect(
     React.useCallback(() => {
       if (currentUser) {
+        hasPlayedSoundRef.current = false; // Reset sound flag when screen comes into focus
         loadData();
       }
     }, [currentUser])
@@ -105,21 +166,23 @@ export default function HomeScreen() {
     try {
       setLoading(true);
       
-      // Load expenses and balance in parallel
-      const [expensesData, balanceData, usersData] = await Promise.all([
-        ExpenseService.getUserExpenses(currentUser.user_id),
+      // Load balance, balances by person, and group balances in parallel
+      const [balanceData, balancesByPersonData, groupBalancesData, usersData] = await Promise.all([
         ExpenseService.calculateUserBalance(currentUser.user_id),
+        ExpenseService.getUserBalancesByPerson(currentUser.user_id),
+        ExpenseService.getUserGroupBalances(currentUser.user_id),
         UserService.getAllUsers(),
       ]);
 
-      setExpenses(expensesData);
       setBalance(balanceData);
+      setBalancesByPerson(balancesByPersonData);
+      setGroupBalances(groupBalancesData);
 
-      // Calculate most common currency from expenses
-      if (expensesData.length > 0) {
+      // Calculate most common currency from balances
+      if (balancesByPersonData.length > 0) {
         const currencyCounts: Record<string, number> = {};
-        expensesData.forEach((expense) => {
-          const curr = expense.currency || "INR";
+        balancesByPersonData.forEach((balance) => {
+          const curr = balance.currency || "INR";
           currencyCounts[curr] = (currencyCounts[curr] || 0) + 1;
         });
         const mostCommonCurrency = Object.entries(currencyCounts).reduce((a, b) =>
@@ -143,36 +206,6 @@ export default function HomeScreen() {
     }
   };
 
-  const getExpensePayerNames = (payers: ExpensePayer[]): string => {
-    const names = payers
-      .slice(0, 2)
-      .map((p) => {
-        const user = userMap[p.user_id];
-        if (user?.user_id === currentUser?.user_id) return "You";
-        return user?.user_name || "Unknown";
-      });
-    
-    if (payers.length > 2) {
-      return `${names.join(", ")} +${payers.length - 2} more`;
-    }
-    return names.join(" and ");
-  };
-
-  const getExpenseParticipantCount = (participants?: ExpenseParticipant[]): number => {
-    return participants?.length || 0;
-  };
-
-  const getUserOwedAmount = (expense: Expense): number => {
-    const participant = expense.participants?.find(
-      (p) => p.user_id === currentUser?.user_id
-    );
-    return participant ? Number(participant.amount_owed || 0) : 0;
-  };
-
-  const getUserPaidAmount = (expense: Expense): number => {
-    const payer = expense.payers.find((p) => p.user_id === currentUser?.user_id);
-    return payer ? Number(payer.amount_paid) : 0;
-  };
 
   if (loading) {
     return (
@@ -223,8 +256,9 @@ export default function HomeScreen() {
                 balance.netBalance >= 0 ? styles.positiveBalance : styles.negativeBalance,
               ]}
             >
-              {balance.netBalance >= 0 ? "+" : ""}
-              {formatCurrency(balance.netBalance, primaryCurrency)}
+              {balance.netBalance === 0 
+                ? "-" 
+                : `${balance.netBalance >= 0 ? "+" : ""}${formatCurrency(balance.netBalance, primaryCurrency)}`}
             </Text>
           </View>
           {balance.netBalance > 0 ? (
@@ -232,8 +266,16 @@ export default function HomeScreen() {
               source={require("../../assets/animations/cash-in.json")}
               autoPlay
               loop={false}
-              speed={1}
+              speed={1.5}
               style={styles.lottieAnimation}
+            />
+          ) : balance.netBalance < 0 ? (
+            <LottieView
+              source={require("../../assets/animations/cash-out.json")}
+              autoPlay
+              loop={true}
+              speed={1.5}
+              style={styles.lottieAnimationNegative}
             />
           ) : (
             <View style={styles.balanceIconContainer}>
@@ -246,103 +288,187 @@ export default function HomeScreen() {
           <View style={styles.balanceItem}>
             <Text style={styles.balanceItemLabel}>You owe</Text>
             <Text style={styles.balanceItemAmount}>
-              {formatCurrency(balance.totalOwed, primaryCurrency)}
+              {balance.totalOwed === 0 ? "-" : formatCurrency(balance.totalOwed, primaryCurrency)}
             </Text>
           </View>
           <View style={styles.balanceDivider} />
           <View style={styles.balanceItem}>
             <Text style={styles.balanceItemLabel}>You're owed</Text>
             <Text style={[styles.balanceItemAmount, styles.owedToAmount]}>
-              {formatCurrency(balance.totalOwedTo, primaryCurrency)}
+              {balance.totalOwedTo === 0 ? "-" : formatCurrency(balance.totalOwedTo, primaryCurrency)}
             </Text>
           </View>
         </View>
       </LinearGradient>
 
-      {/* Expenses Section */}
+      {/* Balances by Person Section */}
       <View style={styles.expensesSection}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Expenses</Text>
-          <Text style={styles.expenseCount}>{expenses.length} expenses</Text>
+          <Text style={styles.sectionTitle}>Who owes what</Text>
         </View>
 
-        {expenses.length === 0 ? (
+        {balancesByPerson.length === 0 && groupBalances.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather name="file-text" size={48} color="#ccc" />
-            <Text style={styles.emptyStateText}>No expenses yet</Text>
+            <Feather name="users" size={48} color="#ccc" />
+            <Text style={styles.emptyStateText}>No balances yet</Text>
             <Text style={styles.emptyStateSubtext}>
               Start splitting bills with friends!
             </Text>
           </View>
         ) : (
-          expenses.map((expense) => {
-            const userOwed = getUserOwedAmount(expense);
-            const userPaid = getUserPaidAmount(expense);
-            const net = userPaid - userOwed;
-            const isOwed = net > 0;
-            const isOwing = net < 0;
+          <>
+            {balancesByPerson.length > 0 && balancesByPerson.map((balanceItem) => {
+            const user = userMap[balanceItem.user_id];
+            const userName = user?.user_name || "Unknown";
+            const isOwed = balanceItem.amount > 0; // Positive means they owe the user
+            const isOwing = balanceItem.amount < 0; // Negative means user owes them
 
             return (
-              <TouchableOpacity
-                key={expense.expense_id}
-                style={styles.expenseCard}
-                activeOpacity={0.7}
+              <View
+                key={balanceItem.user_id}
+                style={styles.balanceCardItem}
               >
-                <View style={styles.expenseHeader}>
-                  <View style={styles.expenseIconContainer}>
-                    <Text
-                      style={[
-                        styles.expenseCurrencyIcon,
-                        isOwed && styles.expenseCurrencyIconOwed,
-                        isOwing && styles.expenseCurrencyIconOwing,
-                      ]}
-                    >
-                      {getCurrencySymbol(expense.currency)}
-                    </Text>
-                  </View>
-                  <View style={styles.expenseInfo}>
-                    <Text style={styles.expenseDescription} numberOfLines={1}>
-                      {expense.description}
-                    </Text>
-                    <Text style={styles.expenseMeta}>
-                      Paid by {getExpensePayerNames(expense.payers)} •{" "}
-                      {getExpenseParticipantCount(expense.participants)} people
-                    </Text>
-                  </View>
-                  <View style={styles.expenseAmountContainer}>
-                    <Text style={styles.expenseAmount}>
-                      {formatCurrency(expense.amount, expense.currency)}
-                    </Text>
-                    {isOwed && (
-                      <View style={styles.badgeContainer}>
-                        <Text style={styles.badgeText}>
-                          +{formatCurrency(net, expense.currency)}
+                <View style={styles.balanceCardItemHeader}>
+                  <View style={styles.balanceCardItemInfo}>
+                    {user?.profile_image_url ? (
+                      <Image
+                        source={{ uri: user.profile_image_url }}
+                        style={styles.balanceCardAvatar}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View style={styles.balanceCardAvatarPlaceholder}>
+                        <Text style={styles.balanceCardAvatarText}>
+                          {userName.charAt(0).toUpperCase()}
                         </Text>
                       </View>
                     )}
-                    {isOwing && (
-                      <View style={[styles.badgeContainer, styles.badgeOwing]}>
-                        <Text style={[styles.badgeText, styles.badgeTextOwing]}>
-                          {formatCurrency(Math.abs(net), expense.currency)}
-                        </Text>
-                      </View>
-                    )}
+                    <View style={styles.balanceCardItemText}>
+                      <Text style={styles.balanceCardItemName}>
+                        {isOwed 
+                          ? `${userName} owes you`
+                          : `You owe ${userName}`
+                        }
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                <View style={styles.expenseFooter}>
-                  <Text style={styles.expenseDate}>
-                    {expense.created_at 
-                      ? new Date(expense.created_at).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })
-                      : "Recently"}
+                  <Text
+                    style={[
+                      styles.balanceCardItemAmount,
+                      isOwed && styles.balanceCardItemAmountOwed,
+                      isOwing && styles.balanceCardItemAmountOwing,
+                    ]}
+                  >
+                    {formatCurrency(Math.abs(balanceItem.amount), balanceItem.currency)}
                   </Text>
                 </View>
-              </TouchableOpacity>
+              </View>
             );
-          })
+            })}
+
+            {/* Group Balances Section */}
+            {groupBalances.length > 0 && (
+              <>
+                <View style={[styles.sectionHeader, { marginTop: balancesByPerson.length > 0 ? 24 : 0 }]}>
+                  <Text style={styles.sectionTitle}>Group Balances</Text>
+                </View>
+                {groupBalances.map((groupBalance) => {
+              const isOwed = groupBalance.netAmount > 0;
+              const isOwing = groupBalance.netAmount < 0;
+
+              return (
+                <View
+                  key={groupBalance.group_id}
+                  style={styles.groupBalanceCard}
+                >
+                  <View style={styles.groupBalanceHeader}>
+                    <View style={styles.groupBalanceInfo}>
+                      {groupBalance.group_icon ? (
+                        <Image
+                          source={{ uri: groupBalance.group_icon }}
+                          style={styles.groupBalanceAvatar}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={styles.groupBalanceAvatarPlaceholder}>
+                          <Text style={styles.groupBalanceAvatarText}>
+                            {groupBalance.group_name.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.groupBalanceText}>
+                        <Text style={styles.groupBalanceName}>
+                          {groupBalance.group_name}
+                        </Text>
+                        <Text style={styles.groupBalanceSubtext}>
+                          {groupBalance.memberBalances.length} {groupBalance.memberBalances.length === 1 ? 'person' : 'people'} involved
+                        </Text>
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        styles.groupBalanceNetAmount,
+                        isOwed && styles.groupBalanceNetAmountOwed,
+                        isOwing && styles.groupBalanceNetAmountOwing,
+                      ]}
+                    >
+                      {isOwed ? "+" : ""}
+                      {formatCurrency(Math.abs(groupBalance.netAmount), groupBalance.currency)}
+                    </Text>
+                  </View>
+
+                  {/* Member Balances Breakdown */}
+                  {groupBalance.memberBalances.length > 0 && (
+                    <View style={styles.groupMemberBalances}>
+                      {groupBalance.memberBalances.map((memberBalance) => {
+                        const member = userMap[memberBalance.user_id];
+                        const memberName = member?.user_name || "Unknown";
+                        const memberIsOwed = memberBalance.amount > 0;
+                        const memberIsOwing = memberBalance.amount < 0;
+
+                        return (
+                          <View key={memberBalance.user_id} style={styles.groupMemberBalanceItem}>
+                            <View style={styles.groupMemberBalanceInfo}>
+                              {member?.profile_image_url ? (
+                                <Image
+                                  source={{ uri: member.profile_image_url }}
+                                  style={styles.groupMemberAvatar}
+                                  contentFit="cover"
+                                />
+                              ) : (
+                                <View style={styles.groupMemberAvatarPlaceholder}>
+                                  <Text style={styles.groupMemberAvatarText}>
+                                    {memberName.charAt(0).toUpperCase()}
+                                  </Text>
+                                </View>
+                              )}
+                              <Text style={styles.groupMemberBalanceName}>
+                                {memberIsOwed 
+                                  ? `${memberName} owes you`
+                                  : `You owe ${memberName}`
+                                }
+                              </Text>
+                            </View>
+                            <Text
+                              style={[
+                                styles.groupMemberBalanceAmount,
+                                memberIsOwed && styles.groupMemberBalanceAmountOwed,
+                                memberIsOwing && styles.groupMemberBalanceAmountOwing,
+                              ]}
+                            >
+                              {formatCurrency(Math.abs(memberBalance.amount), groupBalance.currency)}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+              </>
+            )}
+          </>
         )}
       </View>
       </ScrollView>
@@ -411,7 +537,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 4,
   },
   balanceLabel: {
     fontSize: 14,
@@ -442,10 +568,14 @@ const styles = StyleSheet.create({
     width: 150,
     height: 150,
   },
+  lottieAnimationNegative: {
+    width: 180,
+    height: 180,
+  },
   balanceBreakdown: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 20,
+    paddingTop: 4,
     borderTopWidth: 1,
     borderTopColor: "rgba(255, 255, 255, 0.2)",
   },
@@ -589,5 +719,188 @@ const styles = StyleSheet.create({
   expenseDate: {
     fontSize: 12,
     color: "#9ca3af",
+  },
+  balanceCardItem: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  balanceCardItemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  balanceCardItemInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 12,
+  },
+  balanceCardAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+  },
+  balanceCardAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#33306b",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  balanceCardAvatarText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  balanceCardItemText: {
+    flex: 1,
+  },
+  balanceCardItemName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  balanceCardItemAmount: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1f2937",
+  },
+  balanceCardItemAmountOwed: {
+    color: "#10b981",
+  },
+  balanceCardItemAmountOwing: {
+    color: "#ef4444",
+  },
+  groupBalanceCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  groupBalanceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  groupBalanceInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 12,
+  },
+  groupBalanceAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+  },
+  groupBalanceAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#33306b",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  groupBalanceAvatarText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  groupBalanceText: {
+    flex: 1,
+  },
+  groupBalanceName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  groupBalanceSubtext: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 2,
+  },
+  groupBalanceNetAmount: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1f2937",
+  },
+  groupBalanceNetAmountOwed: {
+    color: "#10b981",
+  },
+  groupBalanceNetAmountOwing: {
+    color: "#ef4444",
+  },
+  groupMemberBalances: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
+    gap: 8,
+  },
+  groupMemberBalanceItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+  groupMemberBalanceInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 12,
+  },
+  groupMemberAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
+  },
+  groupMemberAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#33306b",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  groupMemberAvatarText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  groupMemberBalanceName: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#4b5563",
+  },
+  groupMemberBalanceAmount: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  groupMemberBalanceAmountOwed: {
+    color: "#10b981",
+  },
+  groupMemberBalanceAmountOwing: {
+    color: "#ef4444",
   },
 });
