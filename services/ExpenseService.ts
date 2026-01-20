@@ -2,6 +2,7 @@ import { supabase } from "@/src/config/supabase";
 import {
   Expense
 } from '../src/types/models';
+import { GroupService } from './GroupService';
 
 export const ExpenseService = {
   addExpense: async (expense: Omit<Expense, 'expense_id' | 'created_at' | 'updated_at'>): Promise<Expense> => {
@@ -242,5 +243,228 @@ export const ExpenseService = {
       totalOwedTo: Math.round(totalOwedTo * 100) / 100,
       netBalance: Math.round(netBalance * 100) / 100,
     };
+  },
+
+  getUserBalancesByPerson: async (user_id: string): Promise<Array<{ user_id: string; amount: number; currency: string }>> => {
+    const expenses = await ExpenseService.getUserExpenses(user_id);
+    
+    // Map to store balances per person: { user_id: { amount: number, currency: string } }
+    const balancesMap: Record<string, { amount: number; currency: string }> = {};
+
+    expenses.forEach((expense) => {
+      // Skip group expenses - they will be handled separately
+      const hasGroupScope = expense.scopes?.some((scope) => scope.type === "group");
+      if (hasGroupScope) {
+        return;
+      }
+
+      const currency = expense.currency || "INR";
+      
+      // Calculate what current user paid
+      const userPaid = expense.payers
+        .filter((p) => p.user_id === user_id)
+        .reduce((sum, p) => sum + Number(p.amount_paid), 0);
+
+      // Calculate what current user owes
+      const userOwed = expense.participants
+        ?.filter((p) => p.user_id === user_id)
+        .reduce((sum, p) => sum + Number(p.amount_owed || 0), 0) || 0;
+
+      // Net amount for this expense (positive if user paid more, negative if user owes more)
+      const netForUser = userPaid - userOwed;
+
+      if (netForUser > 0) {
+        // User paid more than owed - distribute what others owe to user
+        const totalOwedByOthers = expense.participants
+          ?.filter((p) => p.user_id !== user_id)
+          .reduce((sum, p) => sum + Number(p.amount_owed || 0), 0) || 0;
+
+        if (totalOwedByOthers > 0) {
+          // Distribute proportionally based on what each person owes
+          expense.participants
+            ?.filter((p) => p.user_id !== user_id)
+            .forEach((participant) => {
+              const participantOwed = Number(participant.amount_owed || 0);
+              if (participantOwed > 0) {
+                const proportion = participantOwed / totalOwedByOthers;
+                const amountOwedToUser = netForUser * proportion;
+
+                if (!balancesMap[participant.user_id]) {
+                  balancesMap[participant.user_id] = { amount: 0, currency };
+                }
+                balancesMap[participant.user_id].amount += amountOwedToUser;
+              }
+            });
+        }
+      } else if (netForUser < 0) {
+        // User owes more than paid - calculate what user owes to each payer
+        const totalPaidByOthers = expense.payers
+          .filter((p) => p.user_id !== user_id)
+          .reduce((sum, p) => sum + Number(p.amount_paid), 0);
+
+        if (totalPaidByOthers > 0) {
+          // Distribute proportionally based on what each payer paid
+          expense.payers
+            .filter((p) => p.user_id !== user_id)
+            .forEach((payer) => {
+              const payerPaid = Number(payer.amount_paid);
+              if (payerPaid > 0) {
+                const proportion = payerPaid / totalPaidByOthers;
+                const amountUserOwes = Math.abs(netForUser) * proportion;
+
+                if (!balancesMap[payer.user_id]) {
+                  balancesMap[payer.user_id] = { amount: 0, currency };
+                }
+                // Negative amount means user owes them
+                balancesMap[payer.user_id].amount -= amountUserOwes;
+              }
+            });
+        }
+      }
+    });
+
+    // Convert map to array and round amounts
+    return Object.entries(balancesMap)
+      .map(([user_id, balance]) => ({
+        user_id,
+        amount: Math.round(balance.amount * 100) / 100,
+        currency: balance.currency,
+      }))
+      .filter((balance) => balance.amount !== 0) // Only include non-zero balances
+      .sort((a, b) => b.amount - a.amount); // Sort by amount descending (people who owe most first)
+  },
+
+  getUserGroupBalances: async (user_id: string): Promise<Array<{ 
+    group_id: string; 
+    group_name: string; 
+    group_icon: string | null;
+    netAmount: number; 
+    currency: string;
+    memberBalances: Array<{ user_id: string; amount: number }>;
+  }>> => {
+    const expenses = await ExpenseService.getUserExpenses(user_id);
+    
+    // Map to store balances per group: { group_id: { ... } }
+    const groupBalancesMap: Record<string, {
+      group_id: string;
+      group_name: string;
+      group_icon: string | null;
+      netAmount: number;
+      currency: string;
+      memberBalances: Record<string, number>;
+    }> = {};
+
+    expenses.forEach((expense) => {
+      // Only process group expenses
+      const groupScope = expense.scopes?.find((scope) => scope.type === "group");
+      if (!groupScope) {
+        return;
+      }
+
+      const groupId = groupScope.id;
+      const currency = expense.currency || "INR";
+      
+      // Calculate what current user paid
+      const userPaid = expense.payers
+        .filter((p) => p.user_id === user_id)
+        .reduce((sum, p) => sum + Number(p.amount_paid), 0);
+
+      // Calculate what current user owes
+      const userOwed = expense.participants
+        ?.filter((p) => p.user_id === user_id)
+        .reduce((sum, p) => sum + Number(p.amount_owed || 0), 0) || 0;
+
+      // Net amount for this expense (positive if user paid more, negative if user owes more)
+      const netForUser = userPaid - userOwed;
+
+      // Initialize group if not exists
+      if (!groupBalancesMap[groupId]) {
+        groupBalancesMap[groupId] = {
+          group_id: groupId,
+          group_name: "", // Will be fetched separately
+          group_icon: null,
+          netAmount: 0,
+          currency,
+          memberBalances: {},
+        };
+      }
+
+      // Add to net amount for the group
+      groupBalancesMap[groupId].netAmount += netForUser;
+
+      // Calculate balances with each member
+      if (netForUser > 0) {
+        // User paid more than owed - others owe user
+        const totalOwedByOthers = expense.participants
+          ?.filter((p) => p.user_id !== user_id)
+          .reduce((sum, p) => sum + Number(p.amount_owed || 0), 0) || 0;
+
+        if (totalOwedByOthers > 0) {
+          expense.participants
+            ?.filter((p) => p.user_id !== user_id)
+            .forEach((participant) => {
+              const participantOwed = Number(participant.amount_owed || 0);
+              if (participantOwed > 0) {
+                const proportion = participantOwed / totalOwedByOthers;
+                const amountOwedToUser = netForUser * proportion;
+
+                if (!groupBalancesMap[groupId].memberBalances[participant.user_id]) {
+                  groupBalancesMap[groupId].memberBalances[participant.user_id] = 0;
+                }
+                groupBalancesMap[groupId].memberBalances[participant.user_id] += amountOwedToUser;
+              }
+            });
+        }
+      } else if (netForUser < 0) {
+        // User owes more than paid - user owes to payers
+        const totalPaidByOthers = expense.payers
+          .filter((p) => p.user_id !== user_id)
+          .reduce((sum, p) => sum + Number(p.amount_paid), 0);
+
+        if (totalPaidByOthers > 0) {
+          expense.payers
+            .filter((p) => p.user_id !== user_id)
+            .forEach((payer) => {
+              const payerPaid = Number(payer.amount_paid);
+              if (payerPaid > 0) {
+                const proportion = payerPaid / totalPaidByOthers;
+                const amountUserOwes = Math.abs(netForUser) * proportion;
+
+                if (!groupBalancesMap[groupId].memberBalances[payer.user_id]) {
+                  groupBalancesMap[groupId].memberBalances[payer.user_id] = 0;
+                }
+                // Negative amount means user owes them
+                groupBalancesMap[groupId].memberBalances[payer.user_id] -= amountUserOwes;
+              }
+            });
+        }
+      }
+    });
+
+    // Fetch group details and convert to array
+    const groupBalances = await Promise.all(
+      Object.values(groupBalancesMap).map(async (groupBalance) => {
+        const group = await GroupService.getGroupById(groupBalance.group_id);
+        return {
+          group_id: groupBalance.group_id,
+          group_name: group?.group_name || "Unknown Group",
+          group_icon: group?.group_icon || null,
+          netAmount: Math.round(groupBalance.netAmount * 100) / 100,
+          currency: groupBalance.currency,
+          memberBalances: Object.entries(groupBalance.memberBalances)
+            .map(([user_id, amount]) => ({
+              user_id,
+              amount: Math.round(amount * 100) / 100,
+            }))
+            .filter((mb) => mb.amount !== 0) // Only include non-zero balances
+            .sort((a, b) => b.amount - a.amount), // Sort by amount descending
+        };
+      })
+    );
+
+    // Filter out groups with zero net amount and no member balances
+    return groupBalances
+      .filter((gb) => gb.netAmount !== 0 || gb.memberBalances.length > 0)
+      .sort((a, b) => b.netAmount - a.netAmount); // Sort by net amount descending
   },
 };
