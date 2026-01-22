@@ -4,13 +4,15 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
+  TouchableOpacity,
   View
 } from "react-native";
 import { ExpenseService } from "../../services/ExpenseService";
@@ -39,6 +41,7 @@ export default function HomeScreen() {
   }>>([]);
   const [userMap, setUserMap] = useState<Record<string, User>>({});
   const [primaryCurrency, setPrimaryCurrency] = useState<string>("INR");
+  const [simplifyExpenses, setSimplifyExpenses] = useState<boolean>(true);
   
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -206,6 +209,44 @@ export default function HomeScreen() {
     }
   };
 
+  // Calculate consolidated balances when simplify is enabled
+  const consolidatedBalances = useMemo(() => {
+    if (!simplifyExpenses) {
+      return [];
+    }
+
+    // Map to store consolidated balances per person: { user_id: amount }
+    const consolidatedMap: Record<string, number> = {};
+
+    // Add individual balances
+    balancesByPerson.forEach((balance) => {
+      if (!consolidatedMap[balance.user_id]) {
+        consolidatedMap[balance.user_id] = 0;
+      }
+      consolidatedMap[balance.user_id] += balance.amount;
+    });
+
+    // Add group member balances
+    groupBalances.forEach((groupBalance) => {
+      groupBalance.memberBalances.forEach((memberBalance) => {
+        if (!consolidatedMap[memberBalance.user_id]) {
+          consolidatedMap[memberBalance.user_id] = 0;
+        }
+        consolidatedMap[memberBalance.user_id] += memberBalance.amount;
+      });
+    });
+
+    // Convert to array and filter out zero balances
+    return Object.entries(consolidatedMap)
+      .map(([user_id, amount]) => ({
+        user_id,
+        amount: Math.round(amount * 100) / 100,
+        currency: primaryCurrency, // Use primary currency for consolidated view
+      }))
+      .filter((balance) => balance.amount !== 0)
+      .sort((a, b) => b.amount - a.amount); // Sort by amount descending
+  }, [simplifyExpenses, balancesByPerson, groupBalances, primaryCurrency]);
+
 
   if (loading) {
     return (
@@ -305,9 +346,78 @@ export default function HomeScreen() {
       <View style={styles.expensesSection}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Who owes what</Text>
+          <View style={styles.toggleContainer}>
+            <Text style={styles.toggleLabel}>Simplify expenses</Text>
+            <Switch
+              value={simplifyExpenses}
+              onValueChange={setSimplifyExpenses}
+              trackColor={{ false: "#d1d5db", true: "#33306b" }}
+              thumbColor={simplifyExpenses ? "#fff" : "#f3f4f6"}
+            />
+          </View>
         </View>
 
-        {balancesByPerson.length === 0 && groupBalances.length === 0 ? (
+        {simplifyExpenses ? (
+          // Simplified/Consolidated View
+          consolidatedBalances.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Feather name="users" size={48} color="#ccc" />
+              <Text style={styles.emptyStateText}>No balances yet</Text>
+              <Text style={styles.emptyStateSubtext}>
+                Start splitting bills with friends!
+              </Text>
+            </View>
+          ) : (
+            consolidatedBalances.map((balanceItem) => {
+              const user = userMap[balanceItem.user_id];
+              const userName = user?.user_name || "Unknown";
+              const isOwed = balanceItem.amount > 0; // Positive means they owe the user
+              const isOwing = balanceItem.amount < 0; // Negative means user owes them
+
+              return (
+                <View
+                  key={balanceItem.user_id}
+                  style={styles.balanceCardItem}
+                >
+                  <View style={styles.balanceCardItemHeader}>
+                    <View style={styles.balanceCardItemInfo}>
+                      {user?.profile_image_url ? (
+                        <Image
+                          source={{ uri: user.profile_image_url }}
+                          style={styles.balanceCardAvatar}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={styles.balanceCardAvatarPlaceholder}>
+                          <Text style={styles.balanceCardAvatarText}>
+                            {userName.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.balanceCardItemText}>
+                        <Text style={styles.balanceCardItemName}>
+                          {isOwed 
+                            ? `${userName} owes you`
+                            : `You owe ${userName}`
+                          }
+                        </Text>
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        styles.balanceCardItemAmount,
+                        isOwed && styles.balanceCardItemAmountOwed,
+                        isOwing && styles.balanceCardItemAmountOwing,
+                      ]}
+                    >
+                      {formatCurrency(Math.abs(balanceItem.amount), balanceItem.currency)}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })
+          )
+        ) : balancesByPerson.length === 0 && groupBalances.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="users" size={48} color="#ccc" />
             <Text style={styles.emptyStateText}>No balances yet</Text>
@@ -609,6 +719,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
+  },
+  toggleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    color: "#6b7280",
+    fontWeight: "500",
   },
   sectionTitle: {
     fontSize: 20,
