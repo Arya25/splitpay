@@ -23,22 +23,7 @@ export default function ActivityScreen() {
   const [userMap, setUserMap] = useState<Record<string, User>>({});
   const [primaryCurrency, setPrimaryCurrency] = useState<string>("INR");
 
-  useEffect(() => {
-    if (currentUser) {
-      loadActivities();
-    }
-  }, [currentUser]);
-
-  // Refresh data when screen comes into focus
-  useFocusEffect(
-    React.useCallback(() => {
-      if (currentUser) {
-        loadActivities();
-      }
-    }, [currentUser])
-  );
-
-  const loadActivities = async () => {
+  const loadActivities = React.useCallback(async () => {
     if (!currentUser) return;
 
     try {
@@ -86,7 +71,16 @@ export default function ActivityScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
+
+  // Refresh data when screen comes into focus (removed duplicate useEffect)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (currentUser) {
+        loadActivities();
+      }
+    }, [currentUser, loadActivities])
+  );
 
   const getUserName = (userId: string): string => {
     if (userId === currentUser?.user_id) return "You";

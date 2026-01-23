@@ -53,9 +53,49 @@ export default function HomeScreen() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const hasPlayedSoundRef = useRef<boolean>(false);
 
-  useEffect(() => {
-    if (currentUser) {
-      loadData();
+  const loadData = React.useCallback(async () => {
+    if (!currentUser) return;
+
+    try {
+      setLoading(true);
+      
+      // Load balance, balances by person, and group balances in parallel
+      const [balanceData, balancesByPersonData, groupBalancesData, usersData] = await Promise.all([
+        ExpenseService.calculateUserBalance(currentUser.user_id),
+        ExpenseService.getUserBalancesByPerson(currentUser.user_id),
+        ExpenseService.getUserGroupBalances(currentUser.user_id),
+        UserService.getAllUsers(),
+      ]);
+
+      setBalance(balanceData);
+      setBalancesByPerson(balancesByPersonData);
+      setGroupBalances(groupBalancesData);
+
+      // Calculate most common currency from balances
+      if (balancesByPersonData.length > 0) {
+        const currencyCounts: Record<string, number> = {};
+        balancesByPersonData.forEach((balance) => {
+          const curr = balance.currency || "INR";
+          currencyCounts[curr] = (currencyCounts[curr] || 0) + 1;
+        });
+        const mostCommonCurrency = Object.entries(currencyCounts).reduce((a, b) =>
+          currencyCounts[a[0]] > currencyCounts[b[0]] ? a : b
+        )[0];
+        setPrimaryCurrency(mostCommonCurrency);
+      } else {
+        setPrimaryCurrency("INR");
+      }
+
+      // Create user map for quick lookup
+      const map: Record<string, User> = {};
+      usersData.forEach((user) => {
+        map[user.user_id] = user;
+      });
+      setUserMap(map);
+    } catch (error) {
+      console.error("Error loading home data:", error);
+    } finally {
+      setLoading(false);
     }
   }, [currentUser]);
 
@@ -144,14 +184,14 @@ export default function HomeScreen() {
     }, 3000);
   };
 
-  // Refresh data when screen comes into focus
+  // Refresh data when screen comes into focus (removed duplicate useEffect)
   useFocusEffect(
     React.useCallback(() => {
       if (currentUser) {
         hasPlayedSoundRef.current = false; // Reset sound flag when screen comes into focus
         loadData();
       }
-    }, [currentUser])
+    }, [currentUser, loadData])
   );
 
   // Show toast message if expense was saved
@@ -163,51 +203,6 @@ export default function HomeScreen() {
     }
   }, [params.expenseSaved, params.expenseError]);
 
-  const loadData = async () => {
-    if (!currentUser) return;
-
-    try {
-      setLoading(true);
-      
-      // Load balance, balances by person, and group balances in parallel
-      const [balanceData, balancesByPersonData, groupBalancesData, usersData] = await Promise.all([
-        ExpenseService.calculateUserBalance(currentUser.user_id),
-        ExpenseService.getUserBalancesByPerson(currentUser.user_id),
-        ExpenseService.getUserGroupBalances(currentUser.user_id),
-        UserService.getAllUsers(),
-      ]);
-
-      setBalance(balanceData);
-      setBalancesByPerson(balancesByPersonData);
-      setGroupBalances(groupBalancesData);
-
-      // Calculate most common currency from balances
-      if (balancesByPersonData.length > 0) {
-        const currencyCounts: Record<string, number> = {};
-        balancesByPersonData.forEach((balance) => {
-          const curr = balance.currency || "INR";
-          currencyCounts[curr] = (currencyCounts[curr] || 0) + 1;
-        });
-        const mostCommonCurrency = Object.entries(currencyCounts).reduce((a, b) =>
-          currencyCounts[a[0]] > currencyCounts[b[0]] ? a : b
-        )[0];
-        setPrimaryCurrency(mostCommonCurrency);
-      } else {
-        setPrimaryCurrency("INR");
-      }
-
-      // Create user map for quick lookup
-      const map: Record<string, User> = {};
-      usersData.forEach((user) => {
-        map[user.user_id] = user;
-      });
-      setUserMap(map);
-    } catch (error) {
-      console.error("Error loading home data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Calculate consolidated balances when simplify is enabled
   const consolidatedBalances = useMemo(() => {

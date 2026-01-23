@@ -62,23 +62,75 @@ export const ExpenseService = {
       }
     }
 
-    // Create activity entry for the expense
-    // Always create activity entry for tracking
+    // Create activity entry for the expense with actor_user_id and targets
     // Find group_id from scopes if expense is for a group
     const groupScope = expense.scopes.find((scope) => scope.type === "group");
     const groupId = groupScope ? groupScope.id : null;
 
-    const { error: activityError } = await supabase
+    // Insert activity with actor_user_id (the expense creator)
+    const { data: activityData, error: activityError } = await supabase
       .from('activities')
       .insert({
         activity_type: 'EXPENSE',
         expense_id: expenseData.expense_id,
         group_id: groupId || null,
-      });
+        actor_user_id: expense.created_by, // Who created the expense
+      })
+      .select()
+      .single();
 
     if (activityError) {
       console.error('Error creating activity entry:', activityError);
       // Don't throw - activity is not critical, expense is already saved
+    } else if (activityData) {
+      // Create activity targets for all involved users and groups
+      const targetsToInsert: Array<{ activity_id: string; target_type: 'user' | 'group'; target_id: string }> = [];
+
+      // Add all participants as targets
+      if (expense.participants && expense.participants.length > 0) {
+        expense.participants.forEach((participant) => {
+          targetsToInsert.push({
+            activity_id: activityData.activity_id,
+            target_type: 'user',
+            target_id: participant.user_id,
+          });
+        });
+      }
+
+      // Add all payers as targets
+      if (expense.payers.length > 0) {
+        expense.payers.forEach((payer) => {
+          // Avoid duplicates if payer is also a participant
+          if (!targetsToInsert.some(t => t.target_type === 'user' && t.target_id === payer.user_id)) {
+            targetsToInsert.push({
+              activity_id: activityData.activity_id,
+              target_type: 'user',
+              target_id: payer.user_id,
+            });
+          }
+        });
+      }
+
+      // Add group as target if expense is for a group
+      if (groupId) {
+        targetsToInsert.push({
+          activity_id: activityData.activity_id,
+          target_type: 'group',
+          target_id: groupId,
+        });
+      }
+
+      // Batch insert all targets
+      if (targetsToInsert.length > 0) {
+        const { error: targetsError } = await supabase
+          .from('activity_targets')
+          .insert(targetsToInsert);
+
+        if (targetsError) {
+          console.error('Error creating activity targets:', targetsError);
+          // Don't throw - targets are not critical
+        }
+      }
     }
 
     return {
@@ -165,39 +217,58 @@ export const ExpenseService = {
       return [];
     }
 
-    // Fetch all expenses
-    const { data: expensesData, error: expensesError } = await supabase
-      .from('expenses')
-      .select('*')
-      .in('expense_id', Array.from(expenseIds));
+    const expenseIdsArray = Array.from(expenseIds);
 
-    if (expensesError) {
-      console.error('Error fetching user expenses:', expensesError);
-      throw expensesError;
+    // Fetch all expenses, participants, and payers in parallel (batch fetch)
+    const [expensesResult, participantsResult, payersResult] = await Promise.all([
+      supabase
+        .from('expenses')
+        .select('*')
+        .in('expense_id', expenseIdsArray),
+      supabase
+        .from('expense_participants')
+        .select('*')
+        .in('expense_id', expenseIdsArray),
+      supabase
+        .from('expense_payers')
+        .select('*')
+        .in('expense_id', expenseIdsArray),
+    ]);
+
+    if (expensesResult.error) {
+      console.error('Error fetching user expenses:', expensesResult.error);
+      throw expensesResult.error;
     }
 
-    // Fetch participants and payers for each expense
-    const expensesWithDetails = await Promise.all(
-      (expensesData || []).map(async (expense: any) => {
-        const [participantsResult, payersResult] = await Promise.all([
-          supabase
-            .from('expense_participants')
-            .select('*')
-            .eq('expense_id', expense.expense_id),
-          supabase
-            .from('expense_payers')
-            .select('*')
-            .eq('expense_id', expense.expense_id),
-        ]);
+    const expensesData = expensesResult.data || [];
+    const allParticipants = participantsResult.data || [];
+    const allPayers = payersResult.data || [];
 
-        return {
-          ...expense,
-          scopes: expense.scopes || [],
-          participants: participantsResult.data || [],
-          payers: payersResult.data || [],
-        };
-      })
-    );
+    // Group participants and payers by expense_id
+    const participantsByExpense: Record<string, any[]> = {};
+    const payersByExpense: Record<string, any[]> = {};
+
+    allParticipants.forEach((participant: any) => {
+      if (!participantsByExpense[participant.expense_id]) {
+        participantsByExpense[participant.expense_id] = [];
+      }
+      participantsByExpense[participant.expense_id].push(participant);
+    });
+
+    allPayers.forEach((payer: any) => {
+      if (!payersByExpense[payer.expense_id]) {
+        payersByExpense[payer.expense_id] = [];
+      }
+      payersByExpense[payer.expense_id].push(payer);
+    });
+
+    // Map expenses with their participants and payers
+    const expensesWithDetails = expensesData.map((expense: any) => ({
+      ...expense,
+      scopes: expense.scopes || [],
+      participants: participantsByExpense[expense.expense_id] || [],
+      payers: payersByExpense[expense.expense_id] || [],
+    }));
 
     // Sort by created_at descending (newest first)
     return expensesWithDetails.sort((a, b) => {

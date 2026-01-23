@@ -26,45 +26,28 @@ export default function GroupsScreen() {
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    fetchGroups();
-  }, [fetchGroups]);
-
-  // Refresh data when screen comes into focus
+  // Refresh data when screen comes into focus - fetch groups and members
   useFocusEffect(
     React.useCallback(() => {
-      fetchGroups();
-    }, [fetchGroups])
+      const loadGroupsWithMembers = async () => {
+        if (!currentUser) return;
+        
+        setLoadingMembers(true);
+        try {
+          // Fetch groups with members (makes 2 queries to group_members:
+          // 1. Get groups user belongs to, 2. Get all members for those groups)
+          const groupsData = await GroupService.getAllGroupsWithMembers(currentUser.user_id);
+          setGroupsWithMembers(groupsData);
+        } catch (error) {
+          console.error("Error loading groups with members:", error);
+        } finally {
+          setLoadingMembers(false);
+        }
+      };
+
+      loadGroupsWithMembers();
+    }, [currentUser])
   );
-
-  useEffect(() => {
-    const loadGroupMembers = async () => {
-      if (groups.length === 0) {
-        setGroupsWithMembers([]);
-        return;
-      }
-
-      setLoadingMembers(true);
-      try {
-        const groupsData = await Promise.all(
-          groups.map(async (group) => {
-            const members = await GroupService.getGroupMembers(group.group_id);
-            return {
-              ...group,
-              membersData: members,
-            };
-          })
-        );
-        setGroupsWithMembers(groupsData);
-      } catch (error) {
-        console.error("Error loading group members:", error);
-      } finally {
-        setLoadingMembers(false);
-      }
-    };
-
-    loadGroupMembers();
-  }, [groups]);
 
   if (loading || loadingMembers) {
     return (

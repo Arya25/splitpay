@@ -104,7 +104,7 @@ export default function ProfileScreen() {
       }
       setLoading(false);
     }
-  }, [currentUser?.user_id, setCurrentUser]);
+  }, [currentUser?.user_id]);
 
   // Cleanup timeout on unmount
   useEffect(() => {

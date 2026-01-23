@@ -31,90 +31,71 @@ export type Activity = ActivityExpense | ActivitySettlement;
 
 export const ActivityService = {
   getUserActivities: async (user_id: string): Promise<Activity[]> => {
-    // Get all activities where user is involved:
-    // 1. Expenses user created
-    // 2. Expenses user is a participant in
-    // 3. Expenses user is a payer in
-    // 4. Expenses in groups user is a member of
-
-    // First, get all groups user is a member of
-    const { data: userGroups, error: groupsError } = await supabase
+    // Get all groups user is a member of (for group target filtering)
+    const { data: userGroups } = await supabase
       .from('group_members')
       .select('group_id')
       .eq('user_id', user_id);
 
-    if (groupsError) {
-      console.error('Error fetching user groups:', groupsError);
-    }
-
     const groupIds = (userGroups || []).map((g: any) => g.group_id);
 
-    // Get all expense IDs where user is involved
-    const [participantResult, payerResult, createdResult] = await Promise.all([
-      supabase
-        .from('expense_participants')
-        .select('expense_id')
-        .eq('user_id', user_id),
-      supabase
-        .from('expense_payers')
-        .select('expense_id')
-        .eq('user_id', user_id),
-      supabase
-        .from('expenses')
-        .select('expense_id')
-        .eq('created_by', user_id),
-    ]);
+    // Get activity IDs where user is involved via activity_targets
+    const targetQueries: Promise<any>[] = [];
 
-    // Collect all unique expense IDs
-    const expenseIds = new Set<string>();
+    // Activities where user is a direct target
+    targetQueries.push(
+      supabase
+        .from('activity_targets')
+        .select('activity_id')
+        .eq('target_type', 'user')
+        .eq('target_id', user_id)
+    );
+
+    // Activities where user's groups are targets (if user is in any groups)
+    if (groupIds.length > 0) {
+      targetQueries.push(
+        supabase
+          .from('activity_targets')
+          .select('activity_id')
+          .eq('target_type', 'group')
+          .in('target_id', groupIds)
+      );
+    }
+
+    const targetResults = await Promise.all(targetQueries);
     
-    (participantResult.data || []).forEach((item: any) => {
-      expenseIds.add(item.expense_id);
-    });
-    
-    (payerResult.data || []).forEach((item: any) => {
-      expenseIds.add(item.expense_id);
-    });
-    
-    (createdResult.data || []).forEach((item: any) => {
-      expenseIds.add(item.expense_id);
+    // Collect all activity IDs from targets
+    const targetActivityIds = new Set<string>();
+    targetResults.forEach((result) => {
+      if (result.data) {
+        result.data.forEach((item: any) => {
+          targetActivityIds.add(item.activity_id);
+        });
+      }
     });
 
-    // Get activities for:
-    // 1. Expenses user is involved in
-    // 2. Expenses in groups user is a member of
+    // Fetch activities where:
+    // 1. User is the actor (created the expense/settlement)
+    // 2. Activity ID is in targetActivityIds (user is a target)
     const activityQueries: Promise<any>[] = [];
 
-    // Activities for expenses user is directly involved in
-    if (expenseIds.size > 0) {
-      activityQueries.push(
-        supabase
-          .from('activities')
-          .select('*')
-          .eq('activity_type', 'EXPENSE')
-          .in('expense_id', Array.from(expenseIds))
-      );
-    }
-
-    // Activities for expenses in groups user is a member of
-    if (groupIds.length > 0) {
-      activityQueries.push(
-        supabase
-          .from('activities')
-          .select('*')
-          .eq('activity_type', 'EXPENSE')
-          .in('group_id', groupIds)
-      );
-    }
-
-    // Activities for settlements (if any)
+    // Activities where user is the actor
     activityQueries.push(
       supabase
         .from('activities')
         .select('*')
-        .eq('activity_type', 'SETTLEMENT')
-        .or(`from_user_id.eq.${user_id},to_user_id.eq.${user_id}`)
+        .eq('actor_user_id', user_id)
     );
+
+    // Activities where user is a target
+    if (targetActivityIds.size > 0) {
+      activityQueries.push(
+        supabase
+          .from('activities')
+          .select('*')
+          .in('activity_id', Array.from(targetActivityIds))
+      );
+    }
 
     const results = await Promise.all(activityQueries);
 
@@ -124,8 +105,10 @@ export const ActivityService = {
     results.forEach((result) => {
       if (result.data) {
         result.data.forEach((activity: any) => {
-          if (!activityMap.has(activity.activity_id)) {
-            activityMap.set(activity.activity_id, activity);
+          // Remove activity_targets from the activity object (it was just for filtering)
+          const { activity_targets, ...cleanActivity } = activity;
+          if (!activityMap.has(cleanActivity.activity_id)) {
+            activityMap.set(cleanActivity.activity_id, cleanActivity);
           }
         });
       }
@@ -140,33 +123,51 @@ export const ActivityService = {
       .filter((id: string) => id);
 
     if (expenseIdsToFetch.length > 0) {
-      const { data: expensesData } = await supabase
-        .from('expenses')
-        .select('*')
-        .in('expense_id', expenseIdsToFetch);
+      // Batch fetch expenses, participants, and payers
+      const [expensesResult, participantsResult, payersResult] = await Promise.all([
+        supabase
+          .from('expenses')
+          .select('*')
+          .in('expense_id', expenseIdsToFetch),
+        supabase
+          .from('expense_participants')
+          .select('*')
+          .in('expense_id', expenseIdsToFetch),
+        supabase
+          .from('expense_payers')
+          .select('*')
+          .in('expense_id', expenseIdsToFetch),
+      ]);
 
-      // Fetch participants and payers for each expense
-      const expensesWithDetails = await Promise.all(
-        (expensesData || []).map(async (expense: any) => {
-          const [participantsResult, payersResult] = await Promise.all([
-            supabase
-              .from('expense_participants')
-              .select('*')
-              .eq('expense_id', expense.expense_id),
-            supabase
-              .from('expense_payers')
-              .select('*')
-              .eq('expense_id', expense.expense_id),
-          ]);
+      const expensesData = expensesResult.data || [];
+      const allParticipants = participantsResult.data || [];
+      const allPayers = payersResult.data || [];
 
-          return {
-            ...expense,
-            scopes: expense.scopes || [],
-            participants: participantsResult.data || [],
-            payers: payersResult.data || [],
-          };
-        })
-      );
+      // Group participants and payers by expense_id
+      const participantsByExpense: Record<string, any[]> = {};
+      const payersByExpense: Record<string, any[]> = {};
+
+      allParticipants.forEach((participant: any) => {
+        if (!participantsByExpense[participant.expense_id]) {
+          participantsByExpense[participant.expense_id] = [];
+        }
+        participantsByExpense[participant.expense_id].push(participant);
+      });
+
+      allPayers.forEach((payer: any) => {
+        if (!payersByExpense[payer.expense_id]) {
+          payersByExpense[payer.expense_id] = [];
+        }
+        payersByExpense[payer.expense_id].push(payer);
+      });
+
+      // Map expenses with their participants and payers
+      const expensesWithDetails = expensesData.map((expense: any) => ({
+        ...expense,
+        scopes: expense.scopes || [],
+        participants: participantsByExpense[expense.expense_id] || [],
+        payers: payersByExpense[expense.expense_id] || [],
+      }));
 
       // Attach expense details to activities
       expenseActivities.forEach((activity: any) => {
